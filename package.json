@@ -15,6 +15,7 @@
   "dependencies": {
     "bluebird": "^2.10.2",
     "dockerode": "^2.2.3",
+    "humanize": "0.0.9",
     "lodash": "^3.10.1",
     "request": "^2.65.0"
   },

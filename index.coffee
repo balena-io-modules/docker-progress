@@ -2,6 +2,7 @@ _ = require 'lodash'
 Promise = require 'bluebird'
 Docker = require 'dockerode'
 request = require 'request'
+humanize = require 'humanize'
 
 request = request.defaults(
 	gzip: true
@@ -92,12 +93,22 @@ module.exports = class DockerProgres
 
 		@docker = new Docker(dockerOpts)
 
-	# Pull docker image returning a stream that reports progress
-	# This is less safe than fetchImage and shouldnt be used for supervisor updates
+	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
 		Promise.join(
 			@docker.pullAsync(image)
 			@pullProgress(image, onProgress)
+			(stream, onProgress) =>
+				Promise.fromNode (callback) =>
+					@docker.modem.followProgress(stream, callback, onProgress)
+		).nodeify(callback)
+
+
+	# Push docker image calling onProgress with extended progress info regularly
+	push: (image, onProgress, options, callback) ->
+		Promise.join(
+			@docker.getImage(image).pushAsync(options)
+			@pushProgress(image, onProgress)
 			(stream, onProgress) =>
 				Promise.fromNode (callback) =>
 					@docker.modem.followProgress(stream, callback, onProgress)
@@ -132,8 +143,7 @@ module.exports = class DockerProgres
 					imageSizes[layerId] = size
 			.return imageSizes
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress events
-	# to include total progress metrics.
+	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
 		.then (layerSizes) ->
@@ -141,19 +151,65 @@ module.exports = class DockerProgres
 			completedSize = 0
 			totalSize = _.sum(layerSizes)
 			return (evt) ->
-				if evt.status == 'Downloading'
+				{ status } = evt
+				if status == 'Downloading'
 					currentSize = evt.progressDetail.current
-				else if evt.status == 'Download complete'
+				else if status == 'Download complete'
 					shortId = evt.id
-					longId = _.find(_.keys(layerSizes), (id) -> id.indexOf(shortId) is 0)
+					longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
 					if longId?
 						completedSize += layerSizes[longId]
 						currentSize = 0
 						layerSizes[longId] = 0 # make sure we don't count this layer again
 					else
-						console.warn("Progress error: Unknown layer #{id} downloaded by docker. Progress not correct.")
+						console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
 						totalSize = null
 				downloadedSize = completedSize + currentSize
 				percentage = calculatePercentage(downloadedSize, totalSize)
 
 				onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
+
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
+	pushProgress: (image, onProgress) ->
+		image = @docker.getImage(image)
+		Promise.join(
+			image.historyAsync()
+			image.inspectAsync()
+			(layers, lastLayer) ->
+				layers.push(lastLayer)
+				layerSizes = _(layers).indexBy('Id').mapValues('Size').value()
+				currentSize = 0
+				completedSize = 0
+				totalSize = _.sum(layerSizes)
+				return (evt) ->
+					{ status } = evt
+					if status is 'Pushing' and evt.progressDetail.current?
+						currentSize = evt.progressDetail.current
+					else if status == 'Buffering to disk'
+						evt.progressDetail.total = _.find(layerSizes, (v, id) -> _.startsWith(id, evt.id))
+						{ current, total } = evt.progressDetail
+						current = humanize.filesize(current)
+						total = if _.isNaN(total) then 'Unknown' else humanize.filesize(total)
+						evt.progress = "#{status} #{current} / #{total}"
+					else
+						if status is 'Image successfully pushed'
+							shortId = evt.id
+						else
+							match = /Image (.*) already pushed/.exec(status)
+							if match
+								shortId = match[1]
+						if shortId
+							longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
+							if longId?
+								completedSize += layerSizes[longId]
+								currentSize = 0
+								layerSizes[longId] = 0 # make sure we don't count this layer again
+							else
+								console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
+								totalSize = null
+					pushedSize = completedSize + currentSize
+					percentage = calculatePercentage(pushedSize, totalSize)
+
+					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
+		)
