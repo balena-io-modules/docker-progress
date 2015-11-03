@@ -86,10 +86,10 @@ calculatePercentage = (completed, total) ->
 		percentage = (100 * completed) // total
 	return percentage
 
-module.exports = class DockerProgres
+module.exports = class DockerProgress
 	constructor: (dockerOpts) ->
-		if !(@ instanceof DockerProgres)
-			return new DockerProgres(dockerOpts)
+		if !(@ instanceof DockerProgress)
+			return new DockerProgress(dockerOpts)
 
 		@docker = new Docker(dockerOpts)
 
