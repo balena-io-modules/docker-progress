@@ -1,3 +1,7 @@
+# v1.1.1
+
+* Fix registry references in errors.
+
 # v1.1.0
 
 * Added support for listing total progress of a docker push.
