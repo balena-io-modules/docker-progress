@@ -35,11 +35,11 @@ class Registry
 	# Get the id of an image on a given registry and tag.
 	getImageId: (imageName, tagName) ->
 		@get("/v1/repositories/#{imageName}/tags")
-		.spread (res, data) ->
+		.spread (res, data) =>
 			if res.statusCode == 404
-				throw new Error("No such image #{imageName} on registry #{registry}")
+				throw new Error("No such image #{imageName} on registry #{@registry}")
 			if res.statusCode >= 400
-				throw new Error("Failed to get image tags of #{imageName} from #{registry}. Status code: #{res.statusCode}")
+				throw new Error("Failed to get image tags of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
 			tags = JSON.parse(data)
 			if !tags[tagName]?
 				throw new Error("Could not find tag #{tagName} for image #{imageName}")
@@ -48,18 +48,18 @@ class Registry
 	# Return the ids of the layers of an image.
 	getImageHistory: (imageId) ->
 		@get("/v1/images/#{imageId}/ancestry")
-		.spread (res, data) ->
+		.spread (res, data) =>
 			if res.statusCode >= 400
-				throw new Error("Failed to get image ancestry of #{imageId} from #{registry}. Status code: #{res.statusCode}")
+				throw new Error("Failed to get image ancestry of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
 			history = JSON.parse(data)
 			return history
 
 	# Return the number of bytes docker has to download to pull this image (or layer).
 	getImageDownloadSize: (imageId) ->
 		@get("/v1/images/#{imageId}/json")
-		.spread (res, data) ->
+		.spread (res, data) =>
 			if res.statusCode >= 400
-				throw new Error("Failed to get image download size of #{imageId} from #{registry}. Status code: #{res.statusCode}")
+				throw new Error("Failed to get image download size of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
 			return parseInt(res.headers['x-docker-size'])
 
 # Separate string containing registry and image name into its parts.
