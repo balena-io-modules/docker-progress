@@ -83,7 +83,7 @@ calculatePercentage = (completed, total) ->
 	else if total is 0
 		percentage = 100 # report 100% if 0 total size
 	else
-		percentage = (100 * completed) // total
+		percentage = Math.min(100, (100 * completed) // total)
 	return percentage
 
 module.exports = class DockerProgress
