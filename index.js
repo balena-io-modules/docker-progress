@@ -116,7 +116,7 @@
     } else if (total === 0) {
       percentage = 100;
     } else {
-      percentage = Math.floor((100 * completed) / total);
+      percentage = Math.min(100, Math.floor((100 * completed) / total));
     }
     return percentage;
   };

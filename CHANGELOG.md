@@ -1,3 +1,7 @@
+# v1.1.2
+
+* Capped reported percentage at 100.
+
 # v1.1.1
 
 * Fix registry references in errors.
