@@ -86,6 +86,25 @@ calculatePercentage = (completed, total) ->
 		percentage = Math.min(100, (100 * completed) // total)
 	return percentage
 
+onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
+	evts = []
+	onProgress = (evt) ->
+		evts.push(evt)
+	# Once the onProgressPromise is fulfilled we switch `onProgress` to the real callback,
+	# or the fallback if it fails, and then call it with all the previously received events in order
+	onProgressPromise
+	.then (resolvedOnProgress) ->
+		onProgress = resolvedOnProgress
+	.catch (realOnProgress) ->
+		onProgress = fallbackOnProgress
+	.then ->
+		_.map evts, (evt) ->
+			try
+				onProgress(evt)
+	# Return an indirect call to `onProgress` so that we can switch to the
+	# real onProgress function when the promise resolves
+	return (evt) -> onProgress(evt)
+
 module.exports = class DockerProgress
 	constructor: (dockerOpts) ->
 		if !(@ instanceof DockerProgress)
@@ -95,24 +114,24 @@ module.exports = class DockerProgress
 
 	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
-		Promise.join(
-			@docker.pullAsync(image)
-			@pullProgress(image, onProgress)
-			(stream, onProgress) =>
-				Promise.fromNode (callback) =>
-					@docker.modem.followProgress(stream, callback, onProgress)
-		).nodeify(callback)
+		onProgressPromise = @pullProgress(image, onProgress)
+		onProgress = onProgressHandler(onProgressPromise, onProgress)
+		@docker.pullAsync(image)
+		.then (stream) =>
+			Promise.fromNode (callback) =>
+				@docker.modem.followProgress(stream, callback, onProgress)
+		.nodeify(callback)
 
 
 	# Push docker image calling onProgress with extended progress info regularly
 	push: (image, onProgress, options, callback) ->
-		Promise.join(
-			@docker.getImage(image).pushAsync(options)
-			@pushProgress(image, onProgress)
-			(stream, onProgress) =>
-				Promise.fromNode (callback) =>
-					@docker.modem.followProgress(stream, callback, onProgress)
-		).nodeify(callback)
+		onProgressPromise = @pushProgress(image, onProgress)
+		onProgress = onProgressHandler(onProgressPromise, onProgress)
+		@docker.getImage(image).pushAsync(options)
+		.then (stream) =>
+			Promise.fromNode (callback) =>
+				@docker.modem.followProgress(stream, callback, onProgress)
+		.nodeify(callback)
 
 
 	# Return true if an image exists in the local docker repository, false otherwise.
