@@ -87,27 +87,13 @@
       })(this));
     };
 
+    Registry.prototype.toString = function() {
+      return this.registry + ":" + this.port;
+    };
+
     return Registry;
 
   })();
-
-  getRegistryAndName = Promise.method(function(image) {
-    var imageName, m, match, ref, ref1, registry, tagName;
-    match = image.match(/^(?:([^\/:]+(?::[^\/]+)?)\/)?([^\/:]+(?:\/[^\/:]+)?)(?::(.*))?$/);
-    if (!match) {
-      throw new Error("Could not parse the image: " + image);
-    }
-    m = match[0], registry = (ref = match[1]) != null ? ref : 'docker.io', imageName = match[2], tagName = (ref1 = match[3]) != null ? ref1 : 'latest';
-    if (!imageName) {
-      throw new Error('Invalid image name, expected domain.tld/repo/image format.');
-    }
-    registry = new Registry(registry);
-    return {
-      registry: registry,
-      imageName: imageName,
-      tagName: tagName
-    };
-  });
 
   calculatePercentage = function(completed, total) {
     var percentage;
@@ -272,5 +258,23 @@
     return DockerProgress;
 
   })();
+
+  module.exports.getRegistryAndName = getRegistryAndName = Promise.method(function(image) {
+    var imageName, m, match, ref, ref1, registry, tagName;
+    match = image.match(/^(?:([^\/:]+(?::[^\/]+)?)\/)?([^\/:]+(?:\/[^\/:]+)?)(?::(.*))?$/);
+    if (!match) {
+      throw new Error("Could not parse the image: " + image);
+    }
+    m = match[0], registry = (ref = match[1]) != null ? ref : 'docker.io', imageName = match[2], tagName = (ref1 = match[3]) != null ? ref1 : 'latest';
+    if (!imageName) {
+      throw new Error('Invalid image name, expected domain.tld/repo/image format.');
+    }
+    registry = new Registry(registry);
+    return {
+      registry: registry,
+      imageName: imageName,
+      tagName: tagName
+    };
+  });
 
 }).call(this);
