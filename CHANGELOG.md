@@ -1,3 +1,6 @@
+* Changed pull/push to fall back to calling onProgress without `downloadedSize`, `totalSize`, and `percentage` in the case where fetching size info fails, rather than failing with an error.
+* Fix a race condition where early layers could complete before we had completed fetching all the layer sizes, meaning it would not be accounted for in `downloadedSize` and `percentage`.
+
 # v1.1.2
 
 * Capped reported percentage at 100.
