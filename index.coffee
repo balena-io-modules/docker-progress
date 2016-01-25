@@ -16,7 +16,7 @@ Promise.promisifyAll(Docker({}).getImage().constructor.prototype)
 Promise.promisifyAll(Docker({}).getContainer().constructor.prototype)
 
 
-class Registry
+exports.Registry = class Registry
 	constructor: (registry) ->
 		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
 		if not match
@@ -62,18 +62,9 @@ class Registry
 				throw new Error("Failed to get image download size of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
 			return parseInt(res.headers['x-docker-size'])
 
-# Separate string containing registry and image name into its parts.
-# Example: registry.resinstaging.io/resin/rpi
-#          { registry: "registry.resinstaging.io", imageName: "resin/rpi" }
-getRegistryAndName = Promise.method (image) ->
-	match = image.match(/^(?:([^\/:]+(?::[^\/]+)?)\/)?([^\/:]+(?:\/[^\/:]+)?)(?::(.*))?$/)
-	if not match
-		throw new Error("Could not parse the image: #{image}")
-	[ m, registry = 'docker.io', imageName, tagName = 'latest' ] = match
-	if not imageName
-		throw new Error('Invalid image name, expected domain.tld/repo/image format.')
-	registry = new Registry(registry)
-	return { registry, imageName, tagName }
+	# Convert to string in the format registry.tld:port
+	toString: ->
+		return "#{@registry}:#{@port}"
 
 # Return percentage from current completed/total, handling edge cases.
 # Null total is considered an unknown total and 0 percentage is returned.
@@ -105,7 +96,7 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
 
-module.exports = class DockerProgress
+exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
 		if !(@ instanceof DockerProgress)
 			return new DockerProgress(dockerOpts)
@@ -232,3 +223,16 @@ module.exports = class DockerProgress
 
 					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
 		)
+
+# Separate string containing registry and image name into its parts.
+# Example: registry.resinstaging.io/resin/rpi
+#          { registry: "registry.resinstaging.io", imageName: "resin/rpi" }
+exports.getRegistryAndName = getRegistryAndName = Promise.method (image) ->
+	match = image.match(/^(?:([^\/:]+(?::[^\/]+)?)\/)?([^\/:]+(?:\/[^\/:]+)?)(?::(.*))?$/)
+	if not match
+		throw new Error("Could not parse the image: #{image}")
+	[ m, registry = 'docker.io', imageName, tagName = 'latest' ] = match
+	if not imageName
+		throw new Error('Invalid image name, expected domain.tld/repo/image format.')
+	registry = new Registry(registry)
+	return { registry, imageName, tagName }
