@@ -22,7 +22,7 @@ exports.Registry = class Registry
 		if not match
 			throw new Error("Could not parse the registry: #{registry}")
 
-		[ m, @registry, port = 80 ] = match
+		[ m, @registry, port = 443 ] = match
 		@port = _.parseInt(port)
 		if _.isNaN(@port)
 			throw new TypeError("Port must be a valid integer, got '#{port}'")

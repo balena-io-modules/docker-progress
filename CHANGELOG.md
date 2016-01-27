@@ -1,4 +1,6 @@
-v2.0.0
+* Use 443 as the default registry port.
+
+# v2.0.0
 
 * Add toString() to Registry class and export getRegistryAndName().
 * Changed pull/push to fall back to calling onProgress without `downloadedSize`, `totalSize`, and `percentage` in the case where fetching size info fails, rather than failing with an error.
