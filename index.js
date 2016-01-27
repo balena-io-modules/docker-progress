@@ -32,7 +32,7 @@
       if (!match) {
         throw new Error("Could not parse the registry: " + registry);
       }
-      m = match[0], this.registry = match[1], port = (ref = match[2]) != null ? ref : 80;
+      m = match[0], this.registry = match[1], port = (ref = match[2]) != null ? ref : 443;
       this.port = _.parseInt(port);
       if (_.isNaN(this.port)) {
         throw new TypeError("Port must be a valid integer, got '" + port + "'");
