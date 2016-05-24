@@ -98,7 +98,7 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 
 exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
-		if !(@ instanceof DockerProgress)
+		if !(this instanceof DockerProgress)
 			return new DockerProgress(dockerOpts)
 
 		@docker = new Docker(dockerOpts)
@@ -138,7 +138,7 @@ exports.DockerProgress = class DockerProgress
 	# If some layer is already downloaded, it will return 0 size for that layer.
 	getLayerDownloadSizes: (image) ->
 		getRegistryAndName(image)
-		.then ({registry,  imageName, tagName}) =>
+		.then ({ registry,  imageName, tagName }) =>
 			imageSizes = {}
 			registry.getImageId(imageName, tagName)
 			.then (imageId) ->

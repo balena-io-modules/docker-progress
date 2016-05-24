@@ -1,3 +1,5 @@
+* Added linting.
+
 # v2.0.1
 
 * Use 443 as the default registry port.
