@@ -1,3 +1,5 @@
+* Added linting.
+
 # v2.1.0
 
 * Correctly handle progress during concurrent pulls.
