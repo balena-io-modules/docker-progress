@@ -157,28 +157,33 @@ exports.DockerProgress = class DockerProgress
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
 		.then (layerSizes) ->
-			currentSize = 0
 			completedSize = 0
+			layerDownloadedSize = {}
 			totalSize = _.sum(layerSizes)
 			return (evt) ->
 				{ status } = evt
 				if status == 'Downloading'
-					currentSize = evt.progressDetail.current
+					shortId = evt.id
+					longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
+					if longId?
+						layerDownloadedSize[longId] = evt.progressDetail.current
+					else
+						console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
+						totalSize = null
 				else if status == 'Download complete'
 					shortId = evt.id
 					longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
 					if longId?
 						completedSize += layerSizes[longId]
-						currentSize = 0
+						layerDownloadedSize[longId] = 0
 						layerSizes[longId] = 0 # make sure we don't count this layer again
 					else
 						console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
 						totalSize = null
-				downloadedSize = completedSize + currentSize
+				downloadedSize = completedSize + _.sum(layerDownloadedSize)
 				percentage = calculatePercentage(downloadedSize, totalSize)
 
 				onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
-
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
