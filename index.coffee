@@ -15,7 +15,6 @@ Promise.promisifyAll(Docker.prototype)
 Promise.promisifyAll(Docker({}).getImage().constructor.prototype)
 Promise.promisifyAll(Docker({}).getContainer().constructor.prototype)
 
-
 exports.Registry = class Registry
 	constructor: (registry) ->
 		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
@@ -96,6 +95,12 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
 
+getLongId = (shortId, layerIds) ->
+	longId = _.find(layerIds, (id) -> _.startsWith(id, shortId))
+	if not longId?
+		throw new Error("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
+	return longId
+
 exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
 		if !(@ instanceof DockerProgress)
@@ -157,33 +162,29 @@ exports.DockerProgress = class DockerProgress
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
 		.then (layerSizes) ->
+			layerIds = _.keys(layerSizes)
 			completedSize = 0
 			layerDownloadedSize = {}
 			totalSize = _.sum(layerSizes)
 			return (evt) ->
-				{ status } = evt
-				if status == 'Downloading'
+				try
+					{ status } = evt
 					shortId = evt.id
-					longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
-					if longId?
+					if status is 'Downloading'
+						longId = getLongId(shortId, layerIds)
 						layerDownloadedSize[longId] = evt.progressDetail.current
-					else
-						console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
-						totalSize = null
-				else if status == 'Download complete'
-					shortId = evt.id
-					longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
-					if longId?
+					else if status is 'Download complete' or status is 'Already exists'
+						longId = getLongId(shortId, layerIds)
 						completedSize += layerSizes[longId]
 						layerDownloadedSize[longId] = 0
 						layerSizes[longId] = 0 # make sure we don't count this layer again
-					else
-						console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
-						totalSize = null
-				downloadedSize = completedSize + _.sum(layerDownloadedSize)
-				percentage = calculatePercentage(downloadedSize, totalSize)
+					downloadedSize = completedSize + _.sum(layerDownloadedSize)
+					percentage = calculatePercentage(downloadedSize, totalSize)
 
-				onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
+					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
+				catch err
+					console.warn("Progress error:", err.message ? err)
+					totalSize = null
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
