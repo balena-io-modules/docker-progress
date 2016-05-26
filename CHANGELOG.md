@@ -1,3 +1,7 @@
+# v2.1.0
+
+* Correctly handle progress during concurrent pulls.
+
 # v2.0.1
 
 * Use 443 as the default registry port.
