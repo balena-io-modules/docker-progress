@@ -103,7 +103,7 @@ getLongId = (shortId, layerIds) ->
 
 exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
-		if !(@ instanceof DockerProgress)
+		if !(this instanceof DockerProgress)
 			return new DockerProgress(dockerOpts)
 
 		@docker = new Docker(dockerOpts)
@@ -143,7 +143,7 @@ exports.DockerProgress = class DockerProgress
 	# If some layer is already downloaded, it will return 0 size for that layer.
 	getLayerDownloadSizes: (image) ->
 		getRegistryAndName(image)
-		.then ({registry,  imageName, tagName}) =>
+		.then ({ registry,  imageName, tagName }) =>
 			imageSizes = {}
 			registry.getImageId(imageName, tagName)
 			.then (imageId) ->
@@ -183,7 +183,7 @@ exports.DockerProgress = class DockerProgress
 
 					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
 				catch err
-					console.warn("Progress error:", err.message ? err)
+					console.warn('Progress error:', err.message ? err)
 					totalSize = null
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
