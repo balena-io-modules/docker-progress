@@ -131,11 +131,14 @@
 
   getLongId = function(shortId, layerIds) {
     var longId;
+    if (shortId == null) {
+      throw new Error("Progress event missing layer id. Progress not correct.");
+    }
     longId = _.find(layerIds, function(id) {
       return _.startsWith(id, shortId);
     });
     if (longId == null) {
-      throw new Error("Progress error: Unknown layer " + shortId + " downloaded by docker. Progress not correct.");
+      throw new Error("Progress error: Unknown layer " + shortId + " referenced by docker. Progress not correct.");
     }
     return longId;
   };
@@ -202,6 +205,20 @@
       })(this));
     };
 
+    DockerProgress.prototype.getImageLayerSizes = function(image) {
+      var lastLayer, layers;
+      image = this.docker.getImage(image);
+      layers = image.historyAsync();
+      lastLayer = image.inspectAsync();
+      return Promise.join(layers, lastLayer, function(layers, lastLayer) {
+        var layerSizes;
+        layers.push(lastLayer);
+        return layerSizes = _(layers).indexBy('Id').mapValues('Size').mapKeys(function(v, id) {
+          return id.replace(/^sha256:/, '');
+        }).value();
+      });
+    };
+
     DockerProgress.prototype.pullProgress = function(image, onProgress) {
       return this.getLayerDownloadSizes(image).then(function(layerSizes) {
         var completedSize, layerDownloadedSize, layerIds, totalSize;
@@ -232,7 +249,7 @@
             }));
           } catch (error) {
             err = error;
-            console.warn("Progress error:", (ref = err.message) != null ? ref : err);
+            console.warn('Progress error:', (ref = err.message) != null ? ref : err);
             return totalSize = null;
           }
         };
@@ -240,57 +257,43 @@
     };
 
     DockerProgress.prototype.pushProgress = function(image, onProgress) {
-      image = this.docker.getImage(image);
-      return Promise.join(image.historyAsync(), image.inspectAsync(), function(layers, lastLayer) {
-        var completedSize, currentSize, layerSizes, totalSize;
-        layers.push(lastLayer);
-        layerSizes = _(layers).indexBy('Id').mapValues('Size').value();
-        currentSize = 0;
+      return this.getImageLayerSizes(image).then(function(layerSizes) {
+        var completedSize, layerIds, layerPushedSize, totalSize;
+        layerIds = _.keys(layerSizes);
+        layerPushedSize = {};
         completedSize = 0;
         totalSize = _.sum(layerSizes);
         return function(evt) {
-          var current, longId, match, percentage, pushedSize, ref, shortId, status, total;
-          status = evt.status;
-          if (status === 'Pushing' && (evt.progressDetail.current != null)) {
-            currentSize = evt.progressDetail.current;
-          } else if (status === 'Buffering to disk') {
-            evt.progressDetail.total = _.find(layerSizes, function(v, id) {
-              return _.startsWith(id, evt.id);
-            });
-            ref = evt.progressDetail, current = ref.current, total = ref.total;
-            current = humanize.filesize(current);
-            total = _.isNaN(total) ? 'Unknown' : humanize.filesize(total);
-            evt.progress = status + " " + current + " / " + total;
-          } else {
-            if (status === 'Image successfully pushed') {
-              shortId = evt.id;
-            } else {
-              match = /Image (.*) already pushed/.exec(status);
-              if (match) {
-                shortId = match[1];
+          var err, error, longId, percentage, pushMatch, pushedSize, ref, shortId, status;
+          try {
+            status = evt.status;
+            shortId = evt.id;
+            pushMatch = /Image (.*) already pushed/.exec(status);
+            if (status === 'Pushing' && (evt.progressDetail.current != null)) {
+              longId = getLongId(shortId, layerIds);
+              if (longId != null) {
+                layerPushedSize[longId] = evt.progressDetail.current;
               }
-            }
-            if (shortId) {
-              longId = _.findKey(layerSizes, function(v, id) {
-                return _.startsWith(id, shortId);
-              });
+            } else if (status === 'Layer already exists' || status === 'Image successfully pushed' || pushMatch) {
+              shortId || (shortId = pushMatch[1]);
+              longId = getLongId(shortId, layerIds);
               if (longId != null) {
                 completedSize += layerSizes[longId];
-                currentSize = 0;
-                layerSizes[longId] = 0;
-              } else {
-                console.warn("Progress error: Unknown layer " + shortId + " downloaded by docker. Progress not correct.");
-                totalSize = null;
+                layerPushedSize[longId] = 0;
               }
             }
+            pushedSize = completedSize + _.sum(layerPushedSize);
+            percentage = calculatePercentage(pushedSize, totalSize);
+            return onProgress(_.merge(evt, {
+              pushedSize: pushedSize,
+              totalSize: totalSize,
+              percentage: percentage
+            }));
+          } catch (error) {
+            err = error;
+            console.warn("Progress error:", (ref = err.message) != null ? ref : err);
+            return totalSize = null;
           }
-          pushedSize = completedSize + currentSize;
-          percentage = calculatePercentage(pushedSize, totalSize);
-          return onProgress(_.merge(evt, {
-            pushedSize: pushedSize,
-            totalSize: totalSize,
-            percentage: percentage
-          }));
         };
       });
     };
