@@ -14,8 +14,8 @@ Promise.promisifyAll(Docker.prototype)
 Promise.promisifyAll(Docker({}).getImage().constructor.prototype)
 Promise.promisifyAll(Docker({}).getContainer().constructor.prototype)
 
-exports.Registry = class Registry
-	constructor: (registry) ->
+class Registry
+	constructor: (registry, @version) ->
 		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
 		if not match
 			throw new Error("Could not parse the registry: #{registry}")
@@ -30,6 +30,11 @@ exports.Registry = class Registry
 	get: (path) ->
 		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
 
+	# Convert to string in the format registry.tld:port
+	toString: ->
+		return "#{@registry}:#{@port}"
+
+exports.RegistryV1 = class RegistryV1 extends Registry
 	# Get the id of an image on a given registry and tag.
 	getImageId: (imageName, tagName) ->
 		@get("/v1/repositories/#{imageName}/tags")
@@ -60,9 +65,58 @@ exports.Registry = class Registry
 				throw new Error("Failed to get image download size of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
 			return parseInt(res.headers['x-docker-size'])
 
-	# Convert to string in the format registry.tld:port
-	toString: ->
-		return "#{@registry}:#{@port}"
+	getLayerDownloadSizes: (imageName, tagName) ->
+		imageSizes = {}
+		@getImageId(imageName, tagName)
+		.then (imageId) =>
+			@getImageHistory(imageId)
+		.map (layerId) =>
+			@getImageDownloadSize(layerId)
+			.then (size) ->
+				imageSizes[layerId] = size
+		.return imageSizes
+
+exports.RegistryV2 = class RegistryV2
+	constructor: (registry, version) ->
+		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
+		if not match
+			throw new Error("Could not parse the registry: #{registry}")
+
+		[ m, @registry, port = 443 ] = match
+		@port = _.parseInt(port)
+		if _.isNaN(@port)
+			throw new TypeError("Port must be a valid integer, got '#{port}'")
+
+		@protocol = if @port is 443 then 'https' else 'http'
+
+	get: (path) ->
+		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
+
+	# Return the ids of the layers of an image.
+	getImageLayers: (imageName, tagName) ->
+		@get("/v2/#{imageName}/manifests/#{tagName}")
+		.spread (res, data) =>
+			if res.statusCode >= 400
+				throw new Error("Failed to get image ancestry of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
+			_.map(JSON.parse(data).fsLayers, 'blobSum')
+
+	# Return the number of bytes docker has to download to pull this blob.
+	getLayerDownloadSize: (imageName, blobId) ->
+		@get("/v2/#{imageName}/blobs/#{blobId}")
+		.spread (res, data) =>
+			if res.statusCode >= 400
+				throw new Error("Failed to get image download size of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
+			return parseInt(res.headers['content-length'])
+
+	# Gives download size per layer (blob)
+	getLayerDownloadSizes: (imageName, tagName) ->
+		imageSizes = {}
+		@getImageLayers(imageName, tagName)
+		.map (blobId) =>
+			@getLayerDownloadSize(imageName, blobId)
+			.then (size) ->
+				imageSizes[blobId] = size
+		.return(imageSizes)
 
 # Return percentage from current completed/total, handling edge cases.
 # Null total is considered an unknown total and 0 percentage is returned.
@@ -119,7 +173,6 @@ exports.DockerProgress = class DockerProgress
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 
-
 	# Push docker image calling onProgress with extended progress info regularly
 	push: (image, onProgress, options, callback) ->
 		onProgressPromise = @pushProgress(image, onProgress)
@@ -130,34 +183,17 @@ exports.DockerProgress = class DockerProgress
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 
-
-	# Return true if an image exists in the local docker repository, false otherwise.
-	imageExists: (imageId) ->
-		@docker.getImage(imageId).inspectAsync()
-		.return true
-		.catch ->
-			return false
-
 	# Get download size of the layers of an image.
 	# The object returned has layer ids as keys and their download size as values.
 	# Download size is the size that docker will download if the image will be pulled now.
 	# If some layer is already downloaded, it will return 0 size for that layer.
 	getLayerDownloadSizes: (image) ->
 		getRegistryAndName(image)
-		.then ({ registry,  imageName, tagName }) =>
-			imageSizes = {}
-			registry.getImageId(imageName, tagName)
-			.then (imageId) ->
-				registry.getImageHistory(imageId)
-			.map (layerId) =>
-				@imageExists(layerId)
-				.then (exists) ->
-					if exists
-						return 0
-					registry.getImageDownloadSize(layerId)
-				.then (size) ->
-					imageSizes[layerId] = size
-			.return imageSizes
+		.then ({ registry, imageName, tagName }) ->
+			registry.getLayerDownloadSizes(imageName, tagName)
+			.then (layerSizes) ->
+				_.mapKeys layerSizes, (v, id) ->
+					id.replace(/^sha256:/, '')
 
 	# Get size of all layers of a local image
 	# "image" is a string, the name of the docker image
@@ -242,5 +278,11 @@ exports.getRegistryAndName = getRegistryAndName = Promise.method (image) ->
 	[ m, registry = 'docker.io', imageName, tagName = 'latest' ] = match
 	if not imageName
 		throw new Error('Invalid image name, expected domain.tld/repo/image format.')
-	registry = new Registry(registry)
-	return { registry, imageName, tagName }
+	request.getAsync("https://#{registry}/v2")
+	.get(0)
+	.then (res) ->
+		if res.statusCode == 404 # assume v1 if not v2
+			registry = new RegistryV1(registry)
+		else
+			registry = new RegistryV2(registry)
+		return { registry, imageName, tagName }
