@@ -67,15 +67,17 @@ exports.RegistryV1 = class RegistryV1 extends Registry
 			return parseInt(res.headers['x-docker-size'])
 
 	getLayerDownloadSizes: (imageName, tagName) ->
-		imageSizes = {}
+		layerSizes = {}
+		layerIds = []
 		@getImageId(imageName, tagName)
 		.then (imageId) =>
 			@getImageHistory(imageId)
 		.map (layerId) =>
+			layerIds.push(layerId)
 			@getImageDownloadSize(layerId)
 			.then (size) ->
-				imageSizes[layerId] = size
-		.return imageSizes
+				layerSizes[layerId] = size
+		.return([ layerSizes, layerIds ])
 
 exports.RegistryV2 = class RegistryV2
 	constructor: (registry, version) ->
@@ -111,13 +113,15 @@ exports.RegistryV2 = class RegistryV2
 
 	# Gives download size per layer (blob)
 	getLayerDownloadSizes: (imageName, tagName) ->
-		imageSizes = {}
+		layerSizes = {}
+		layerIds = []
 		@getImageLayers(imageName, tagName)
 		.map (blobId) =>
+			layerIds.unshift(blobId)
 			@getLayerDownloadSize(imageName, blobId)
 			.then (size) ->
-				imageSizes[blobId] = size
-		.return(imageSizes)
+				layerSizes[blobId] = size
+		.return([ layerSizes, layerIds ])
 
 # Return percentage from current completed/total, handling edge cases.
 # Null total is considered an unknown total and 0 percentage is returned.
@@ -139,7 +143,8 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	onProgressPromise
 	.then (resolvedOnProgress) ->
 		onProgress = resolvedOnProgress
-	.catch (realOnProgress) ->
+	.catch (e) ->
+		console.warn('error', e)
 		onProgress = fallbackOnProgress
 	.then ->
 		_.map evts, (evt) ->
@@ -190,31 +195,36 @@ exports.DockerProgress = class DockerProgress
 		getRegistryAndName(image)
 		.then ({ registry, imageName, tagName }) ->
 			registry.getLayerDownloadSizes(imageName, tagName)
-			.then (layerSizes) ->
-				_.mapKeys layerSizes, (v, id) ->
-					id.replace(/^sha256:/, '')
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
-		.then (layerSizes) ->
-			layerIds = _.keys(layerSizes)
-			completedSize = 0
-			layerDownloadedSize = {}
+		.spread (layerSizes, remoteLayerIds) ->
+			layerIds = {} # map from remote to local ids
 			totalSize = _.sum(layerSizes)
+			completedSize = 0
+			currentDownloadedSize = {}
 			return (evt) ->
 				try
 					{ status } = evt
 					shortId = evt.id
+					if evt.progressDetail? and not layerIds[shortId]?
+						remoteId = remoteLayerIds.find (id) ->
+							id.replace(/^sha256:/, '').startsWith(shortId)
+						if not remoteId?
+							remoteId = remoteLayerIds[_.size(layerIds)]
+						layerIds[shortId] = remoteId
 					if status is 'Downloading'
-						longId = getLongId(shortId, layerIds)
-						layerDownloadedSize[longId] = evt.progressDetail.current
+						currentDownloadedSize[shortId] = evt.progressDetail.current
 					else if status is 'Download complete' or status is 'Already exists'
-						longId = getLongId(shortId, layerIds)
-						completedSize += layerSizes[longId]
-						layerDownloadedSize[longId] = 0
-						layerSizes[longId] = 0 # make sure we don't count this layer again
-					downloadedSize = completedSize + _.sum(layerDownloadedSize)
+						remoteId = layerIds[shortId]
+						completedSize += layerSizes[remoteId]
+						currentDownloadedSize[shortId] = 0
+					else if status.match(/^Status: Image is up to date for /)
+						completedSize = totalSize
+						currentDownloadedSize = {}
+
+					downloadedSize = completedSize + _.sum(currentDownloadedSize)
 					percentage = calculatePercentage(downloadedSize, totalSize)
 
 					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
