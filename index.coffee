@@ -2,7 +2,6 @@ _ = require 'lodash'
 Promise = require 'bluebird'
 Docker = require 'dockerode'
 request = require 'request'
-humanize = require 'humanize'
 
 request = request.defaults(
 	gzip: true
@@ -97,7 +96,7 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 
 getLongId = (shortId, layerIds) ->
 	if not shortId?
-		throw new Error("Progress event missing layer id. Progress not correct.")
+		throw new Error('Progress event missing layer id. Progress not correct.')
 	longId = _.find(layerIds, (id) -> _.startsWith(id, shortId))
 	if not longId?
 		throw new Error("Progress error: Unknown layer #{shortId} referenced by docker. Progress not correct.")
@@ -168,7 +167,7 @@ exports.DockerProgress = class DockerProgress
 		lastLayer = image.inspectAsync()
 		Promise.join layers, lastLayer, (layers, lastLayer) ->
 			layers.push(lastLayer)
-			layerSizes = _(layers)
+			_(layers)
 			.indexBy('Id')
 			.mapValues('Size')
 			.mapKeys (v, id) ->
@@ -230,7 +229,7 @@ exports.DockerProgress = class DockerProgress
 					percentage = calculatePercentage(pushedSize, totalSize)
 					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
 				catch err
-					console.warn("Progress error:", err.message ? err)
+					console.warn('Progress error:', err.message ? err)
 					totalSize = null
 
 # Separate string containing registry and image name into its parts.
