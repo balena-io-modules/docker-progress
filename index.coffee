@@ -2,7 +2,6 @@ _ = require 'lodash'
 Promise = require 'bluebird'
 Docker = require 'dockerode'
 request = require 'request'
-humanize = require 'humanize'
 
 request = request.defaults(
 	gzip: true
@@ -96,9 +95,11 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	return (evt) -> onProgress(evt)
 
 getLongId = (shortId, layerIds) ->
+	if not shortId?
+		throw new Error('Progress event missing layer id. Progress not correct.')
 	longId = _.find(layerIds, (id) -> _.startsWith(id, shortId))
 	if not longId?
-		throw new Error("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
+		throw new Error("Progress error: Unknown layer #{shortId} referenced by docker. Progress not correct.")
 	return longId
 
 exports.DockerProgress = class DockerProgress
@@ -158,6 +159,21 @@ exports.DockerProgress = class DockerProgress
 					imageSizes[layerId] = size
 			.return imageSizes
 
+	# Get size of all layers of a local image
+	# "image" is a string, the name of the docker image
+	getImageLayerSizes: (image) ->
+		image = @docker.getImage(image)
+		layers = image.historyAsync()
+		lastLayer = image.inspectAsync()
+		Promise.join layers, lastLayer, (layers, lastLayer) ->
+			layers.push(lastLayer)
+			_(layers)
+			.indexBy('Id')
+			.mapValues('Size')
+			.mapKeys (v, id) ->
+				id.replace(/^sha256:/, '')
+			.value()
+
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
@@ -188,47 +204,33 @@ exports.DockerProgress = class DockerProgress
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
-		image = @docker.getImage(image)
-		Promise.join(
-			image.historyAsync()
-			image.inspectAsync()
-			(layers, lastLayer) ->
-				layers.push(lastLayer)
-				layerSizes = _(layers).indexBy('Id').mapValues('Size').value()
-				currentSize = 0
-				completedSize = 0
-				totalSize = _.sum(layerSizes)
-				return (evt) ->
+		@getImageLayerSizes(image)
+		.then (layerSizes) ->
+			layerIds = _.keys(layerSizes)
+			layerPushedSize = {}
+			completedSize = 0
+			totalSize = _.sum(layerSizes)
+			return (evt) ->
+				try
 					{ status } = evt
+					shortId = evt.id
+					pushMatch = /Image (.*) already pushed/.exec(status)
 					if status is 'Pushing' and evt.progressDetail.current?
-						currentSize = evt.progressDetail.current
-					else if status == 'Buffering to disk'
-						evt.progressDetail.total = _.find(layerSizes, (v, id) -> _.startsWith(id, evt.id))
-						{ current, total } = evt.progressDetail
-						current = humanize.filesize(current)
-						total = if _.isNaN(total) then 'Unknown' else humanize.filesize(total)
-						evt.progress = "#{status} #{current} / #{total}"
-					else
-						if status is 'Image successfully pushed'
-							shortId = evt.id
-						else
-							match = /Image (.*) already pushed/.exec(status)
-							if match
-								shortId = match[1]
-						if shortId
-							longId = _.findKey(layerSizes, (v, id) -> _.startsWith(id, shortId))
-							if longId?
-								completedSize += layerSizes[longId]
-								currentSize = 0
-								layerSizes[longId] = 0 # make sure we don't count this layer again
-							else
-								console.warn("Progress error: Unknown layer #{shortId} downloaded by docker. Progress not correct.")
-								totalSize = null
-					pushedSize = completedSize + currentSize
+						longId = getLongId(shortId, layerIds)
+						if longId?
+							layerPushedSize[longId] = evt.progressDetail.current
+					else if status is 'Layer already exists' or status is 'Image successfully pushed' or pushMatch
+						shortId or= pushMatch[1]
+						longId = getLongId(shortId, layerIds)
+						if longId?
+							completedSize += layerSizes[longId]
+							layerPushedSize[longId] = 0
+					pushedSize = completedSize + _.sum(layerPushedSize)
 					percentage = calculatePercentage(pushedSize, totalSize)
-
 					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
-		)
+				catch err
+					console.warn('Progress error:', err.message ? err)
+					totalSize = null
 
 # Separate string containing registry and image name into its parts.
 # Example: registry.resinstaging.io/resin/rpi

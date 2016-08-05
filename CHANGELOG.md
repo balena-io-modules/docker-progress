@@ -1,3 +1,4 @@
+* Correctly handle progress during concurrent push.
 * Added linting.
 
 # v2.1.0
