@@ -218,8 +218,8 @@ exports.DockerProgress = class DockerProgress
 		.spread (layerSizes, remoteLayerIds) ->
 			layerIds = {} # map from remote to local ids
 			totalSize = _.sum(layerSizes)
-			completedSize = 0
-			currentDownloadedSize = {}
+			downloadSize = {}
+			extractSize = {}
 			return (evt) ->
 				try
 					{ status } = evt
@@ -231,19 +231,31 @@ exports.DockerProgress = class DockerProgress
 							remoteId = remoteLayerIds[_.size(layerIds)]
 						layerIds[shortId] = remoteId
 					if status is 'Downloading'
-						currentDownloadedSize[shortId] = evt.progressDetail.current
+						downloadSize[shortId] = evt.progressDetail.current
+					else if status is 'Extracting'
+						extractSize[shortId] = evt.progressDetail.current
 					else if status is 'Download complete' or status is 'Already exists'
 						remoteId = layerIds[shortId]
-						completedSize += layerSizes[remoteId]
-						currentDownloadedSize[shortId] = 0
-					else if status.match(/^Status: Image is up to date for /)
-						completedSize = totalSize
-						currentDownloadedSize = {}
+						downloadSize[shortId] = layerSizes[remoteId]
+						extractSize[shortId] = layerSizes[remoteId]
 
-					downloadedSize = completedSize + _.sum(currentDownloadedSize)
-					percentage = calculatePercentage(downloadedSize, totalSize)
+					if status.match(/^Status: Image is up to date for /)
+						downloadedTotal = totalSize
+						extractedTotal = totalSize
+					else
+						downloadedTotal = _.sum(downloadSize)
+						extractedTotal = _.sum(extractSize)
 
-					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
+					downloadedPercentage = calculatePercentage(downloadedTotal, totalSize)
+					extractedPercentage = calculatePercentage(extractedTotal, totalSize)
+					percentage = calculatePercentage(downloadedTotal + extractedTotal, totalSize * 2)
+					onProgress _.merge evt, {
+						downloadedSize: downloadedTotal
+						extractedSize: extractedTotal
+						percentage
+						downloadedPercentage
+						extractedPercentage
+					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
