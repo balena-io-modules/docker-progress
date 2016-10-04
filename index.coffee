@@ -1,6 +1,6 @@
 _ = require 'lodash'
 Promise = require 'bluebird'
-Docker = require 'dockerode'
+Docker = require 'docker-toolbelt'
 request = require 'request'
 
 request = request.defaults(
@@ -9,18 +9,13 @@ request = request.defaults(
 )
 request = Promise.promisifyAll(request, multiArgs: true)
 
-Promise.promisifyAll(Docker.prototype)
-# Hack dockerode to promisify internal classes' prototypes
-Promise.promisifyAll(Docker({}).getImage().constructor.prototype)
-Promise.promisifyAll(Docker({}).getContainer().constructor.prototype)
-
 class Registry
 	constructor: (registry, @version) ->
 		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
 		if not match
 			throw new Error("Could not parse the registry: #{registry}")
 
-		[ m, @registry, port = 443 ] = match
+		[ ..., @registry, port = 443 ] = match
 		@port = _.parseInt(port)
 		if _.isNaN(@port)
 			throw new TypeError("Port must be a valid integer, got '#{port}'")
@@ -84,7 +79,7 @@ exports.RegistryV2 = class RegistryV2
 		if not match
 			throw new Error("Could not parse the registry: #{registry}")
 
-		[ m, @registry, port = 443 ] = match
+		[ ..., @registry, port = 443 ] = match
 		@port = _.parseInt(port)
 		if _.isNaN(@port)
 			throw new TypeError("Port must be a valid integer, got '#{port}'")
@@ -188,12 +183,24 @@ exports.DockerProgress = class DockerProgress
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 
+	getRegistryAndName: (image) ->
+		@docker.getRegistryAndName(image)
+		.then ({ registry, imageName, tagName }) ->
+			request.getAsync("https://#{registry}/v2")
+			.get(0)
+			.then (res) ->
+				if res.statusCode == 404 # assume v1 if not v2
+					registry = new RegistryV1(registry)
+				else
+					registry = new RegistryV2(registry)
+				return { registry, imageName, tagName }
+
 	# Get download size of the layers of an image.
 	# The object returned has layer ids as keys and their download size as values.
 	# Download size is the size that docker will download if the image will be pulled now.
 	# If some layer is already downloaded, it will return 0 size for that layer.
 	getLayerDownloadSizes: (image) ->
-		getRegistryAndName(image)
+		@getRegistryAndName(image)
 		.then ({ registry, imageName, tagName }) ->
 			registry.getLayerDownloadSizes(imageName, tagName)
 
@@ -277,22 +284,3 @@ exports.DockerProgress = class DockerProgress
 				catch err
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
-
-# Separate string containing registry and image name into its parts.
-# Example: registry.resinstaging.io/resin/rpi
-#          { registry: "registry.resinstaging.io", imageName: "resin/rpi" }
-exports.getRegistryAndName = getRegistryAndName = Promise.method (image) ->
-	match = image.match(/^(?:([^\/:]+(?::[^\/]+)?)\/)?([^\/:]+(?:\/[^\/:]+)?)(?::(.*))?$/)
-	if not match
-		throw new Error("Could not parse the image: #{image}")
-	[ m, registry = 'docker.io', imageName, tagName = 'latest' ] = match
-	if not imageName
-		throw new Error('Invalid image name, expected domain.tld/repo/image format.')
-	request.getAsync("https://#{registry}/v2")
-	.get(0)
-	.then (res) ->
-		if res.statusCode == 404 # assume v1 if not v2
-			registry = new RegistryV1(registry)
-		else
-			registry = new RegistryV2(registry)
-		return { registry, imageName, tagName }
