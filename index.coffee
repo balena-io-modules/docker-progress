@@ -7,7 +7,7 @@ request = request.defaults(
 	gzip: true
 	timeout: 30000
 )
-request = Promise.promisifyAll(request)
+request = Promise.promisifyAll(request, multiArgs: true)
 
 Promise.promisifyAll(Docker.prototype)
 # Hack dockerode to promisify internal classes' prototypes
@@ -174,7 +174,7 @@ exports.DockerProgress = class DockerProgress
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.pullAsync(image)
 		.then (stream) =>
-			Promise.fromNode (callback) =>
+			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 
@@ -184,7 +184,7 @@ exports.DockerProgress = class DockerProgress
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.getImage(image).pushAsync(options)
 		.then (stream) =>
-			Promise.fromNode (callback) =>
+			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 

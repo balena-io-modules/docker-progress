@@ -15,7 +15,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "bluebird": "^2.10.2",
+    "bluebird": "^3.0.0",
     "dockerode": "^2.2.3",
     "humanize": "0.0.9",
     "lodash": "^4.0.0",
