@@ -206,7 +206,7 @@ exports.DockerProgress = class DockerProgress
 		Promise.join layers, lastLayer, (layers, lastLayer) ->
 			layers.push(lastLayer)
 			_(layers)
-			.indexBy('Id')
+			.keyBy('Id')
 			.mapValues('Size')
 			.mapKeys (v, id) ->
 				id.replace(/^sha256:/, '')
