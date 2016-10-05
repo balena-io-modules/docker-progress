@@ -1,3 +1,4 @@
+* Updated to coffee-script 1.11
 * Correctly handle progress during concurrent push.
 * Added linting.
 
