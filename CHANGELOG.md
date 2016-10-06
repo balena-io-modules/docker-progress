@@ -1,3 +1,4 @@
+* Updated to bluebird 3
 * Updated to lodash v4
 * Updated to coffee-script 1.11
 * Correctly handle progress during concurrent push.
