@@ -17,7 +17,9 @@
     timeout: 30000
   });
 
-  request = Promise.promisifyAll(request);
+  request = Promise.promisifyAll(request, {
+    multiArgs: true
+  });
 
   Promise.promisifyAll(Docker.prototype);
 
@@ -247,7 +249,7 @@
       onProgress = onProgressHandler(onProgressPromise, onProgress);
       return this.docker.pullAsync(image).then((function(_this) {
         return function(stream) {
-          return Promise.fromNode(function(callback) {
+          return Promise.fromCallback(function(callback) {
             return _this.docker.modem.followProgress(stream, callback, onProgress);
           });
         };
@@ -260,7 +262,7 @@
       onProgress = onProgressHandler(onProgressPromise, onProgress);
       return this.docker.getImage(image).pushAsync(options).then((function(_this) {
         return function(stream) {
-          return Promise.fromNode(function(callback) {
+          return Promise.fromCallback(function(callback) {
             return _this.docker.modem.followProgress(stream, callback, onProgress);
           });
         };
@@ -282,7 +284,7 @@
       lastLayer = image.inspectAsync();
       return Promise.join(layers, lastLayer, function(layers, lastLayer) {
         layers.push(lastLayer);
-        return _(layers).indexBy('Id').mapValues('Size').mapKeys(function(v, id) {
+        return _(layers).keyBy('Id').mapValues('Size').mapKeys(function(v, id) {
           return id.replace(/^sha256:/, '');
         }).value();
       });
