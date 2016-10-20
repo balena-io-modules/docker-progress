@@ -2,6 +2,7 @@ _ = require 'lodash'
 Promise = require 'bluebird'
 Docker = require 'dockerode'
 request = require 'request'
+humanize = require 'humanize'
 
 request = request.defaults(
 	gzip: true
@@ -78,22 +79,7 @@ exports.RegistryV1 = class RegistryV1 extends Registry
 				layerSizes[layerId] = size
 		.return([ layerSizes, layerIds ])
 
-exports.RegistryV2 = class RegistryV2
-	constructor: (registry, version) ->
-		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
-		if not match
-			throw new Error("Could not parse the registry: #{registry}")
-
-		[ m, @registry, port = 443 ] = match
-		@port = _.parseInt(port)
-		if _.isNaN(@port)
-			throw new TypeError("Port must be a valid integer, got '#{port}'")
-
-		@protocol = if @port is 443 then 'https' else 'http'
-
-	get: (path) ->
-		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
+exports.RegistryV2 = class RegistryV2 extends Registry
 	# Return the ids of the layers of an image.
 	getImageLayers: (imageName, tagName) ->
 		@get("/v2/#{imageName}/manifests/#{tagName}")
@@ -132,6 +118,14 @@ calculatePercentage = (completed, total) ->
 	else
 		percentage = Math.min(100, (100 * completed) // total)
 	return percentage
+
+prettyPercentage = (percentage) ->
+	if percentage?
+		" - #{percentage}%"
+	else
+		''
+
+PROGRESS_BAR_WIDTH = 50
 
 onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	evts = []
@@ -214,10 +208,11 @@ exports.DockerProgress = class DockerProgress
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
+		progressRenderer = @renderProgress.bind(this)
 		@getLayerDownloadSizes(image)
 		.spread (layerSizes, remoteLayerIds) ->
 			layerIds = {} # map from remote to local ids
-			totalSize = _.sum(layerSizes)
+			totalSize = _.sum(_.values(layerSizes))
 			downloadSize = {}
 			extractSize = {}
 			return (evt) ->
@@ -230,11 +225,18 @@ exports.DockerProgress = class DockerProgress
 						if not remoteId?
 							remoteId = remoteLayerIds[_.size(layerIds)]
 						layerIds[shortId] = remoteId
+
 					if status is 'Downloading'
 						downloadSize[shortId] = evt.progressDetail.current
 					else if status is 'Extracting'
 						extractSize[shortId] = evt.progressDetail.current
-					else if status is 'Download complete' or status is 'Already exists'
+					else if status is 'Download complete'
+						remoteId = layerIds[shortId]
+						downloadSize[shortId] = layerSizes[remoteId]
+					else if status is 'Pull complete'
+						remoteId = layerIds[shortId]
+						extractSize[shortId] = layerSizes[remoteId]
+					else if status is 'Already exists'
 						remoteId = layerIds[shortId]
 						downloadSize[shortId] = layerSizes[remoteId]
 						extractSize[shortId] = layerSizes[remoteId]
@@ -243,18 +245,25 @@ exports.DockerProgress = class DockerProgress
 						downloadedTotal = totalSize
 						extractedTotal = totalSize
 					else
-						downloadedTotal = _.sum(downloadSize)
-						extractedTotal = _.sum(extractSize)
+						downloadedTotal = _.sum(_.values(downloadSize))
+						extractedTotal = _.sum(_.values(extractSize))
 
+					total = totalSize * 2
+					completedSize = downloadedTotal + extractedTotal
 					downloadedPercentage = calculatePercentage(downloadedTotal, totalSize)
 					extractedPercentage = calculatePercentage(extractedTotal, totalSize)
-					percentage = calculatePercentage(downloadedTotal + extractedTotal, totalSize * 2)
+					percentage = calculatePercentage(completedSize, total)
+
 					onProgress _.merge evt, {
-						downloadedSize: downloadedTotal
-						extractedSize: extractedTotal
 						percentage
 						downloadedPercentage
 						extractedPercentage
+						downloadedSize: downloadedTotal
+						extractedSize: extractedTotal
+						totalProgress: progressRenderer(percentage, completedSize, total)
+						totalProgressDetail:
+							current: completedSize
+							total: total
 					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
@@ -289,6 +298,16 @@ exports.DockerProgress = class DockerProgress
 				catch err
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
+
+	# Builds and returns a Docker-like progress bar like this:
+	# [==================================>               ] XXX.XX MB/178.83 MB - 64%
+	renderProgress: (percentage, completedSize, totalSize, width = PROGRESS_BAR_WIDTH) ->
+		barCount =  width * percentage // 100
+		spaceCount = width - barCount
+		percentage = prettyPercentage(percentage)
+		bar = "[#{_.repeat('=', barCount)}>#{_.repeat(' ', spaceCount)}]"
+		stats = "#{humanize.filesize(completedSize)}/#{humanize.filesize(totalSize)}#{percentage}"
+		return "#{bar} #{stats}"
 
 # Separate string containing registry and image name into its parts.
 # Example: registry.resinstaging.io/resin/rpi
