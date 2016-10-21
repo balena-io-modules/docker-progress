@@ -224,7 +224,7 @@ exports.DockerProgress = class DockerProgress
 		@getLayerDownloadSizes(image)
 		.spread (layerSizes, remoteLayerIds) ->
 			layerIds = {} # map from remote to local ids
-			totalSize = _.sum(layerSizes)
+			totalSize = _.sum(_.values(layerSizes))
 			completedSize = 0
 			currentDownloadedSize = {}
 			return (evt) ->
@@ -247,7 +247,7 @@ exports.DockerProgress = class DockerProgress
 						completedSize = totalSize
 						currentDownloadedSize = {}
 
-					downloadedSize = completedSize + _.sum(currentDownloadedSize)
+					downloadedSize = completedSize + _.sum(_.values(currentDownloadedSize))
 					percentage = calculatePercentage(downloadedSize, totalSize)
 
 					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
@@ -262,7 +262,7 @@ exports.DockerProgress = class DockerProgress
 			layerIds = _.keys(layerSizes)
 			layerPushedSize = {}
 			completedSize = 0
-			totalSize = _.sum(layerSizes)
+			totalSize = _.sum(_.values(layerSizes))
 			return (evt) ->
 				try
 					{ status } = evt
@@ -278,7 +278,7 @@ exports.DockerProgress = class DockerProgress
 						if longId?
 							completedSize += layerSizes[longId]
 							layerPushedSize[longId] = 0
-					pushedSize = completedSize + _.sum(layerPushedSize)
+					pushedSize = completedSize + _.sum(_.values(layerPushedSize))
 					percentage = calculatePercentage(pushedSize, totalSize)
 					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
 				catch err
