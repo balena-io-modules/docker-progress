@@ -1,3 +1,5 @@
+* Do not export getRegistryAndName and use docker-toolbelt instead
+
 # v2.3.0
 
 * Updated to bluebird 3
@@ -6,6 +8,7 @@
 
 # v2.2.0
 
+* Support pulling from registry v2
 * Correctly handle progress during concurrent push.
 * Added linting.
 
