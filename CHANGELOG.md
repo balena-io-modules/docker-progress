@@ -1,3 +1,5 @@
+# v2.3.1
+
 * Fix use of `_.sum` for lodash 4
 * Do not export getRegistryAndName and use docker-toolbelt instead
 
