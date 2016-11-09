@@ -1,3 +1,5 @@
+# v2.3.2
+
 * Updated to docker-toolbelt 1.3.1
 
 # v2.3.1
