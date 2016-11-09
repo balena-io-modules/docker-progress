@@ -1,3 +1,5 @@
+* Updated to docker-toolbelt 1.3.1
+
 # v2.3.1
 
 * Fix use of `_.sum` for lodash 4
