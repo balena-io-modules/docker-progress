@@ -252,6 +252,11 @@ exports.ProgressReporter = class ProgressReporter
 			layerPushedSize = {}
 			completedSize = 0
 			totalSize = _.sum(_.values(layerSizes))
+			completeStatuses = [
+				'Image already exists'
+				'Layer already exists'
+				'Image successfully pushed'
+			]
 			return (evt) ->
 				try
 					{ status } = evt
@@ -261,15 +266,19 @@ exports.ProgressReporter = class ProgressReporter
 						longId = getLongId(shortId, layerIds)
 						if longId?
 							layerPushedSize[longId] = evt.progressDetail.current
-					else if pushMatch or status is 'Layer already exists' or status is 'Image successfully pushed'
+					else if pushMatch or _.includes(completeStatuses, status)
 						shortId or= pushMatch[1]
 						longId = getLongId(shortId, layerIds)
 						if longId?
 							completedSize += layerSizes[longId]
 							layerPushedSize[longId] = 0
 
-					pushedSize = completedSize + _.sum(_.values(layerPushedSize))
-					percentage = calculatePercentage(pushedSize, totalSize)
+					if status.match(/^latest: digest: /) or status.match(/^Pushing tag for rev /)
+						pushedSize = totalSize
+						percentage = 100
+					else
+						pushedSize = completedSize + _.sum(_.values(layerPushedSize))
+						percentage = calculatePercentage(pushedSize, totalSize)
 
 					onProgress _.merge evt, {
 						percentage
