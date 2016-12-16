@@ -35,6 +35,19 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
 
+combinedProgressHandler = (renderer, states, index, callback) ->
+	return (evt) ->
+		# update current reporter state
+		states[index].percentage = evt.percentage
+		# update totals
+		percentage = _.sumBy(states, 'percentage') // (states.length || 1)
+		# update event
+		evt.totalProgress = renderer(percentage)
+		evt.percentage = percentage
+		evt.progressIndex = index
+		# call callback with aggregate event
+		callback(evt)
+
 class ProgressTracker
 	constructor: (@coalesceBelow = 0) ->
 		@layers = {}
@@ -178,6 +191,15 @@ exports.DockerProgress = class DockerProgress
 				return new LegacyProgressReporter(renderer, docker)
 			else
 				return new ProgressReporter(renderer)
+
+	aggregateProgress: (count, onProgress) ->
+		renderer = @getProgressRenderer()
+		states = []
+		reporters = []
+		for i in [0...count]
+			states.push(percentage: 0)
+			reporters.push(combinedProgressHandler(renderer, states, i, onProgress))
+		return reporters
 
 	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
