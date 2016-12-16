@@ -113,7 +113,7 @@ DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
 # Builds and returns a Docker-like progress bar like this:
 # [==================================>               ] 64%
-renderProgress = (percentage, stepCount = DEFAULT_PROGRESS_BAR_STEP_COUNT) ->
+renderProgress = (percentage, stepCount) ->
 	percentage = Math.min(Math.max(percentage, 0), 100)
 	barCount =  stepCount * percentage // 100
 	spaceCount = stepCount - barCount
@@ -165,6 +165,11 @@ exports.DockerProgress = class DockerProgress
 			return new DockerProgress(dockerOpts)
 
 		@docker = new Docker(dockerOpts)
+		@reporter = new ProgressReporter(@getProgressRenderer(), @docker)
+
+	getProgressRenderer: (stepCount = DEFAULT_PROGRESS_BAR_STEP_COUNT) ->
+		return (percentage) ->
+			renderProgress(percentage, stepCount)
 
 	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
@@ -185,6 +190,19 @@ exports.DockerProgress = class DockerProgress
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
+	pullProgress: (image, onProgress) ->
+		@reporter.pullProgress(image, onProgress)
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
+	pushProgress: (image, onProgress) ->
+		@reporter.pushProgress(image, onProgress)
+
+class ProgressReporter
+	constructor: (@renderProgress, @docker) -> #
 
 	getRegistryAndName: (image) ->
 		@docker.getRegistryAndName(image)
@@ -212,6 +230,7 @@ exports.DockerProgress = class DockerProgress
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
+		progressRenderer = @renderProgress
 		@getLayerDownloadSizes(image)
 		.spread (registryVersion, layerSizes, remoteLayerIds) ->
 			layerIds = {} # map from remote to local ids
@@ -276,7 +295,7 @@ exports.DockerProgress = class DockerProgress
 						downloadedSize
 						extractedSize
 						totalSize: totalSize * progressMultiplier
-						totalProgress: renderProgress(percentage)
+						totalProgress: progressRenderer(percentage)
 					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
@@ -300,6 +319,7 @@ exports.DockerProgress = class DockerProgress
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
+		progressRenderer = @renderProgress
 		@getImageLayerSizes(image)
 		.then (layerSizes) ->
 			layerIds = _.keys(layerSizes)
@@ -329,7 +349,7 @@ exports.DockerProgress = class DockerProgress
 						percentage
 						pushedSize
 						totalSize
-						totalProgress: renderProgress(percentage)
+						totalProgress: progressRenderer(percentage)
 					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
