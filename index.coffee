@@ -25,6 +25,9 @@ class Registry
 	get: (path) ->
 		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
 
+	head: (path) ->
+		request.headAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
+
 	# Convert to string in the format registry.tld:port
 	toString: ->
 		return "#{@registry}:#{@port}"
@@ -73,25 +76,7 @@ exports.RegistryV1 = class RegistryV1 extends Registry
 				layerSizes[layerId] = size
 		.return([ layerSizes, layerIds ])
 
-exports.RegistryV2 = class RegistryV2
-	constructor: (registry, version) ->
-		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
-		if not match
-			throw new Error("Could not parse the registry: #{registry}")
-
-		[ ..., @registry, port = 443 ] = match
-		@port = _.parseInt(port)
-		if _.isNaN(@port)
-			throw new TypeError("Port must be a valid integer, got '#{port}'")
-
-		@protocol = if @port is 443 then 'https' else 'http'
-
-	get: (path) ->
-		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
-	head: (path) ->
-		request.headAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
+exports.RegistryV2 = class RegistryV2 extends Registry
 	# Return the ids of the layers of an image.
 	getImageLayers: (imageName, tagName) ->
 		@get("/v2/#{imageName}/manifests/#{tagName}")
@@ -207,22 +192,8 @@ exports.DockerProgress = class DockerProgress
 		.then ({ registry, imageName, tagName }) ->
 			registry.getLayerDownloadSizes(imageName, tagName)
 
-	# Get size of all layers of a local image
-	# "image" is a string, the name of the docker image
-	getImageLayerSizes: (image) ->
-		image = @docker.getImage(image)
-		layers = image.historyAsync()
-		lastLayer = image.inspectAsync()
-		Promise.join layers, lastLayer, (layers, lastLayer) ->
-			layers.push(lastLayer)
-			_(layers)
-			.keyBy('Id')
-			.mapValues('Size')
-			.mapKeys (v, id) ->
-				id.replace(/^sha256:/, '')
-			.value()
-
-	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
 		.spread (layerSizes, remoteLayerIds) ->
@@ -258,7 +229,23 @@ exports.DockerProgress = class DockerProgress
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
+	# Get size of all layers of a local image
+	# "image" is a string, the name of the docker image
+	getImageLayerSizes: (image) ->
+		image = @docker.getImage(image)
+		layers = image.historyAsync()
+		lastLayer = image.inspectAsync()
+		Promise.join layers, lastLayer, (layers, lastLayer) ->
+			layers.push(lastLayer)
+			_(layers)
+			.keyBy('Id')
+			.mapValues('Size')
+			.mapKeys (v, id) ->
+				id.replace(/^sha256:/, '')
+			.value()
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
 		@getImageLayerSizes(image)
 		.then (layerSizes) ->
