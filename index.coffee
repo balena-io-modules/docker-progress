@@ -33,6 +33,8 @@ class Registry
 		return "#{@registry}:#{@port}"
 
 exports.RegistryV1 = class RegistryV1 extends Registry
+	getVersion: -> 1
+
 	# Get the id of an image on a given registry and tag.
 	getImageId: (imageName, tagName) ->
 		@get("/v1/repositories/#{imageName}/tags")
@@ -77,6 +79,8 @@ exports.RegistryV1 = class RegistryV1 extends Registry
 		.return([ layerSizes, layerIds ])
 
 exports.RegistryV2 = class RegistryV2 extends Registry
+	getVersion: -> 2
+
 	# Return the ids of the layers of an image.
 	getImageLayers: (imageName, tagName) ->
 		@get("/v2/#{imageName}/manifests/#{tagName}")
@@ -104,6 +108,17 @@ exports.RegistryV2 = class RegistryV2 extends Registry
 			.then (size) ->
 				layerSizes[blobId] = size
 		.return([ layerSizes, layerIds ])
+
+DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
+
+# Builds and returns a Docker-like progress bar like this:
+# [==================================>               ] 64%
+renderProgress = (percentage, stepCount = DEFAULT_PROGRESS_BAR_STEP_COUNT) ->
+	percentage = Math.min(Math.max(percentage, 0), 100)
+	barCount =  stepCount * percentage // 100
+	spaceCount = stepCount - barCount
+	bar = "[#{_.repeat('=', barCount)}>#{_.repeat(' ', spaceCount)}]"
+	return "#{bar} #{percentage}%"
 
 # Return percentage from current completed/total, handling edge cases.
 # Null total is considered an unknown total and 0 percentage is returned.
@@ -191,16 +206,21 @@ exports.DockerProgress = class DockerProgress
 		@getRegistryAndName(image)
 		.then ({ registry, imageName, tagName }) ->
 			registry.getLayerDownloadSizes(imageName, tagName)
+			.spread (layerSizes, remoteLayerIds) ->
+				[ registry.getVersion(), layerSizes, remoteLayerIds ]
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getLayerDownloadSizes(image)
-		.spread (layerSizes, remoteLayerIds) ->
+		.spread (registryVersion, layerSizes, remoteLayerIds) ->
 			layerIds = {} # map from remote to local ids
+			progressMultiplier = 2
 			totalSize = _.sum(_.values(layerSizes))
-			completedSize = 0
+			totalDownloadedSize = 0
+			totalExtractedSize = 0
 			currentDownloadedSize = {}
+			currentExtractedSize = {}
 			return (evt) ->
 				try
 					{ status } = evt
@@ -211,20 +231,53 @@ exports.DockerProgress = class DockerProgress
 						if not remoteId?
 							remoteId = remoteLayerIds[_.size(layerIds)]
 						layerIds[shortId] = remoteId
+
 					if status is 'Downloading'
 						currentDownloadedSize[shortId] = evt.progressDetail.current
-					else if status is 'Download complete' or status is 'Already exists'
+					else if status is 'Extracting'
+						currentExtractedSize[shortId] = evt.progressDetail.current
+					else if status is 'Download complete'
 						remoteId = layerIds[shortId]
-						completedSize += layerSizes[remoteId]
+						totalDownloadedSize += layerSizes[remoteId]
 						currentDownloadedSize[shortId] = 0
-					else if status.match(/^Status: Image is up to date for /)
-						completedSize = totalSize
+					else if status is 'Pull complete'
+						remoteId = layerIds[shortId]
+						totalExtractedSize += layerSizes[remoteId]
+						currentExtractedSize[shortId] = 0
+					else if status is 'Already exists'
+						remoteId = layerIds[shortId]
+						totalDownloadedSize += layerSizes[remoteId]
+						totalExtractedSize += layerSizes[remoteId]
+						currentDownloadedSize[shortId] = 0
+						currentExtractedSize[shortId] = 0
+					else if status.match(/^Status: Image is up to date for /) or status.match(/^Status: Downloaded newer image for /)
+						totalDownloadedSize = totalSize
+						totalExtractedSize = totalSize
 						currentDownloadedSize = {}
+						currentExtractedSize = {}
 
-					downloadedSize = completedSize + _.sum(_.values(currentDownloadedSize))
-					percentage = calculatePercentage(downloadedSize, totalSize)
+					# when pulling from registry v1, docker doesn't report extraction
+					# events. reset here so that we don't skew progress calculation.
+					if registryVersion < 2
+						progressMultiplier = 1
+						totalExtractedSize = 0
+						currentExtractedSize = {}
 
-					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
+					downloadedSize = totalDownloadedSize + _.sum(_.values(currentDownloadedSize))
+					downloadedPercentage = calculatePercentage(downloadedSize, totalSize)
+
+					extractedSize = totalExtractedSize + _.sum(_.values(currentExtractedSize))
+					extractedPercentage = calculatePercentage(extractedSize, totalSize)
+
+					percentage = (downloadedPercentage + extractedPercentage) // progressMultiplier
+
+					onProgress _.merge evt, {
+						percentage
+						downloadedSize
+						extractedSize
+						totalSize: totalSize * progressMultiplier
+						totalProgress: renderProgress(percentage)
+					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
@@ -262,15 +315,22 @@ exports.DockerProgress = class DockerProgress
 						longId = getLongId(shortId, layerIds)
 						if longId?
 							layerPushedSize[longId] = evt.progressDetail.current
-					else if status is 'Layer already exists' or status is 'Image successfully pushed' or pushMatch
+					else if pushMatch or status is 'Layer already exists' or status is 'Image successfully pushed'
 						shortId or= pushMatch[1]
 						longId = getLongId(shortId, layerIds)
 						if longId?
 							completedSize += layerSizes[longId]
 							layerPushedSize[longId] = 0
+
 					pushedSize = completedSize + _.sum(_.values(layerPushedSize))
 					percentage = calculatePercentage(pushedSize, totalSize)
-					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
+
+					onProgress _.merge evt, {
+						percentage
+						pushedSize
+						totalSize
+						totalProgress: renderProgress(percentage)
+					}
 				catch err
 					console.warn('Progress error:', err.message ? err)
 					totalSize = null
