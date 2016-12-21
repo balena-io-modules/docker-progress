@@ -195,7 +195,7 @@ exports.ProgressReporter = class ProgressReporter
 						totalExtractedSize += layerSizes[remoteId]
 						currentDownloadedSize[shortId] = 0
 						currentExtractedSize[shortId] = 0
-					else if status.match(/^Status: Image is up to date for /) or status.match(/^Status: Downloaded newer image for /)
+					else if status.startsWith('Status: Image is up to date for ') or status.startsWith('Status: Downloaded newer image for ')
 						totalDownloadedSize = totalSize
 						totalExtractedSize = totalSize
 						currentDownloadedSize = {}
@@ -273,7 +273,7 @@ exports.ProgressReporter = class ProgressReporter
 							completedSize += layerSizes[longId]
 							layerPushedSize[longId] = 0
 
-					if status.match(/^latest: digest: /) or status.match(/^Pushing tag for rev /)
+					if status.startsWith('latest: digest: ') or status.startsWith('Pushing tag for rev ')
 						pushedSize = totalSize
 						percentage = 100
 					else
