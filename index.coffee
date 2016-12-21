@@ -9,8 +9,8 @@ DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 # Builds and returns a Docker-like progress bar like this:
 # [==================================>               ] 64%
 renderProgress = (percentage, stepCount) ->
-	percentage = Math.min(Math.max(percentage, 0), 100)
-	barCount =  stepCount * percentage // 100
+	percentage = _.clamp(percentage, 0, 100)
+	barCount = stepCount * percentage // 100
 	spaceCount = stepCount - barCount
 	bar = "[#{_.repeat('=', barCount)}>#{_.repeat(' ', spaceCount)}]"
 	return "#{bar} #{percentage}%"
@@ -35,19 +35,6 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
 
-combinedProgressHandler = (renderer, states, index, callback) ->
-	return (evt) ->
-		# update current reporter state
-		states[index].percentage = evt.percentage
-		# update totals
-		percentage = _.sumBy(states, 'percentage') // (states.length || 1)
-		# update event
-		evt.totalProgress = renderer(percentage)
-		evt.percentage = percentage
-		evt.progressIndex = index
-		# call callback with aggregate event
-		callback(evt)
-
 class ProgressTracker
 	constructor: (@coalesceBelow = 0) ->
 		@layers = {}
@@ -67,9 +54,8 @@ class ProgressTracker
 
 	getProgress: ->
 		layers = _.filter(@layers, coalesced: false)
-		layerCount = layers.length || 1
-		progress = _.sumBy(layers, 'progress')
-		return Math.round(100 * progress / layerCount)
+		avgProgress = _.meanBy(layers, 'progress') || 0
+		return Math.round(100 * avgProgress)
 
 	patchProgressEvent: (progress) ->
 		# some events arrive without .total
@@ -82,91 +68,89 @@ class ProgressReporter
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.
-	pullProgress: (image, onProgress) ->
+	pullProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
 		downloadProgressTracker = new ProgressTracker(100 * 1024) # 100 KB
 		extractionProgressTracker = new ProgressTracker(1024 * 1024) # 1 MB
 		lastPercentage = 0
-		Promise.try ->
-			return (evt) ->
-				try
-					{ id, status } = evt
+		return (evt) ->
+			try
+				{ id, status } = evt
 
-					if status is 'Pulling fs layer'
-						downloadProgressTracker.addLayer(id)
-						extractionProgressTracker.addLayer(id)
-					else if status is 'Downloading'
-						downloadProgressTracker.updateLayer(id, evt.progressDetail)
-					else if status is 'Extracting'
-						extractionProgressTracker.updateLayer(id, evt.progressDetail)
-					else if status is 'Download complete'
-						downloadProgressTracker.finishLayer(id)
-					else if status is 'Pull complete'
-						extractionProgressTracker.finishLayer(id)
-					else if status is 'Already exists'
-						downloadProgressTracker.finishLayer(id)
-						extractionProgressTracker.finishLayer(id)
+				if status is 'Pulling fs layer'
+					downloadProgressTracker.addLayer(id)
+					extractionProgressTracker.addLayer(id)
+				else if status is 'Downloading'
+					downloadProgressTracker.updateLayer(id, evt.progressDetail)
+				else if status is 'Extracting'
+					extractionProgressTracker.updateLayer(id, evt.progressDetail)
+				else if status is 'Download complete'
+					downloadProgressTracker.finishLayer(id)
+				else if status is 'Pull complete'
+					extractionProgressTracker.finishLayer(id)
+				else if status is 'Already exists'
+					downloadProgressTracker.finishLayer(id)
+					extractionProgressTracker.finishLayer(id)
 
-					if status.match(/^Status: Image is up to date for /) or status.match(/^Status: Downloaded newer image for /)
-						downloadedPercentage = 100
-						extractedPercentage = 100
-					else
-						downloadedPercentage = downloadProgressTracker.getProgress()
-						extractedPercentage = extractionProgressTracker.getProgress()
+				if status.startsWith('Status: Image is up to date for ') or status.startsWith('Status: Downloaded newer image for ')
+					downloadedPercentage = 100
+					extractedPercentage = 100
+				else
+					downloadedPercentage = downloadProgressTracker.getProgress()
+					extractedPercentage = extractionProgressTracker.getProgress()
 
-					percentage = (downloadedPercentage + extractedPercentage) // 2
-					percentage = lastPercentage = Math.max(percentage, lastPercentage)
+				percentage = (downloadedPercentage + extractedPercentage) // 2
+				percentage = lastPercentage = Math.max(percentage, lastPercentage)
 
-					onProgress _.merge evt, {
-						percentage
-						downloadedPercentage
-						extractedPercentage
-						totalProgress: progressRenderer(percentage)
-					}
-				catch err
-					console.warn('Progress error:', err.message ? err)
+				onProgress _.merge evt, {
+					percentage
+					downloadedPercentage
+					extractedPercentage
+					totalProgress: progressRenderer(percentage)
+				}
+			catch err
+				console.warn('Progress error:', err.message ? err)
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.
-	pushProgress: (image, onProgress) ->
+	pushProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
 		progressTracker = new ProgressTracker(100 * 1024) # 100 KB
 		lastPercentage = 0
-		Promise.try ->
-			return (evt) ->
-				try
-					{ id, status } = evt
+		return (evt) ->
+			try
+				{ id, status } = evt
 
-					pushMatch = /Image (.*) already pushed/.exec(status)
+				pushMatch = /Image (.*) already pushed/.exec(status)
 
-					id ?= pushMatch?[1]
-					status ?= ''
+				id ?= pushMatch?[1]
+				status ?= ''
 
-					if status is 'Preparing'
-						progressTracker.addLayer(id)
-					else if status is 'Pushing' and evt.progressDetail.current?
-						progressTracker.updateLayer(id, evt.progressDetail)
-					# registry v2 statuses
-					else if _.includes(['Pushed', 'Layer already exists', 'Image already exists'], status) or /^Mounted from /.test(status)
-						progressTracker.finishLayer(id)
-					# registry v1 statuses
-					else if pushMatch? or _.includes(['Already exists', 'Image successfully pushed'], status)
-						progressTracker.finishLayer(id)
+				if status is 'Preparing'
+					progressTracker.addLayer(id)
+				else if status is 'Pushing' and evt.progressDetail.current?
+					progressTracker.updateLayer(id, evt.progressDetail)
+				# registry v2 statuses
+				else if _.includes(['Pushed', 'Layer already exists', 'Image already exists'], status) or /^Mounted from /.test(status)
+					progressTracker.finishLayer(id)
+				# registry v1 statuses
+				else if pushMatch? or _.includes(['Already exists', 'Image successfully pushed'], status)
+					progressTracker.finishLayer(id)
 
-					percentage = if status.match(/^latest: digest: /) or status.match(/^Pushing tag for rev /)
-						100
-					else
-						progressTracker.getProgress()
+				percentage = if status.startsWith('latest: digest: ') or status.startsWith('Pushing tag for rev ')
+					100
+				else
+					progressTracker.getProgress()
 
-					percentage = lastPercentage = Math.max(percentage, lastPercentage)
+				percentage = lastPercentage = Math.max(percentage, lastPercentage)
 
-					onProgress _.merge evt, {
-						id
-						percentage
-						totalProgress: progressRenderer(percentage)
-					}
-				catch err
-					console.warn('Progress error:', err.message ? err)
+				onProgress _.merge evt, {
+					id
+					percentage
+					totalProgress: progressRenderer(percentage)
+				}
+			catch err
+				console.warn('Progress error:', err.message ? err)
 
 exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
@@ -194,12 +178,19 @@ exports.DockerProgress = class DockerProgress
 
 	aggregateProgress: (count, onProgress) ->
 		renderer = @getProgressRenderer()
-		states = []
-		reporters = []
-		for i in [0...count]
-			states.push(percentage: 0)
-			reporters.push(combinedProgressHandler(renderer, states, i, onProgress))
-		return reporters
+		states = _.times(count, -> percentage: 0)
+		return _.times count, (index) ->
+			return (evt) ->
+				# update current reporter state
+				states[index].percentage = evt.percentage
+				# update totals
+				percentage = _.sumBy(states, 'percentage') // (states.length || 1)
+				# update event
+				evt.totalProgress = renderer(percentage)
+				evt.percentage = percentage
+				evt.progressIndex = index
+				# call callback with aggregate event
+				onProgress(evt)
 
 	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
