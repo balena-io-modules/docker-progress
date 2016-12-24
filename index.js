@@ -140,6 +140,10 @@
       return request.getAsync(this.protocol + "://" + this.registry + ":" + this.port + path);
     };
 
+    RegistryV2.prototype.head = function(path) {
+      return request.headAsync(this.protocol + "://" + this.registry + ":" + this.port + path);
+    };
+
     RegistryV2.prototype.getImageLayers = function(imageName, tagName) {
       return this.get("/v2/" + imageName + "/manifests/" + tagName).spread((function(_this) {
         return function(res, data) {
@@ -152,7 +156,7 @@
     };
 
     RegistryV2.prototype.getLayerDownloadSize = function(imageName, blobId) {
-      return this.get("/v2/" + imageName + "/blobs/" + blobId).spread((function(_this) {
+      return this.head("/v2/" + imageName + "/blobs/" + blobId).spread((function(_this) {
         return function(res, data) {
           if (res.statusCode >= 400) {
             throw new Error("Failed to get image download size of " + imageName + " from " + _this.registry + ". Status code: " + res.statusCode);

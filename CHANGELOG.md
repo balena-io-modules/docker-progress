@@ -1,3 +1,5 @@
+# v2.3.3
+
 * Fixed downloading the entire layer to get the size
 
 # v2.3.2
