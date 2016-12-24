@@ -1,3 +1,5 @@
+* Fixed downloading the entire layer to get the size
+
 # v2.3.2
 
 * Updated to docker-toolbelt 1.3.1

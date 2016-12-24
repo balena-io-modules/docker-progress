@@ -89,6 +89,9 @@ exports.RegistryV2 = class RegistryV2
 	get: (path) ->
 		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
 
+	head: (path) ->
+		request.headAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
+
 	# Return the ids of the layers of an image.
 	getImageLayers: (imageName, tagName) ->
 		@get("/v2/#{imageName}/manifests/#{tagName}")
@@ -99,7 +102,7 @@ exports.RegistryV2 = class RegistryV2
 
 	# Return the number of bytes docker has to download to pull this blob.
 	getLayerDownloadSize: (imageName, blobId) ->
-		@get("/v2/#{imageName}/blobs/#{blobId}")
+		@head("/v2/#{imageName}/blobs/#{blobId}")
 		.spread (res, data) =>
 			if res.statusCode >= 400
 				throw new Error("Failed to get image download size of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
