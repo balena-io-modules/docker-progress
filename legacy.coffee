@@ -65,17 +65,16 @@ class RegistryV1 extends Registry
 			return parseInt(res.headers['x-docker-size'])
 
 	getLayerDownloadSizes: (imageName, tagName) ->
-		layerSizes = {}
-		layerIds = []
 		@getImageId(imageName, tagName)
 		.then (imageId) =>
 			@getImageHistory(imageId)
-		.map (layerId) =>
-			layerIds.push(layerId)
-			@getImageDownloadSize(layerId)
-			.then (size) ->
-				layerSizes[layerId] = size
-		.return([ layerSizes, layerIds ])
+		.then (layerIds) =>
+			layerSizes = {}
+			Promise.map layerIds, (layerId) =>
+				@getImageDownloadSize(layerId)
+				.then (size) ->
+					layerSizes[layerId] = size
+			.return([ layerSizes, layerIds ])
 
 class RegistryV2 extends Registry
 	getVersion: -> 2
@@ -98,15 +97,14 @@ class RegistryV2 extends Registry
 
 	# Gives download size per layer (blob)
 	getLayerDownloadSizes: (imageName, tagName) ->
-		layerSizes = {}
-		layerIds = []
 		@getImageLayers(imageName, tagName)
-		.map (blobId) =>
-			layerIds.unshift(blobId)
-			@getLayerDownloadSize(imageName, blobId)
-			.then (size) ->
-				layerSizes[blobId] = size
-		.return([ layerSizes, layerIds ])
+		.then (blobIds) =>
+			layerSizes = {}
+			Promise.map blobIds, (blobId) =>
+				@getLayerDownloadSize(imageName, blobId)
+				.then (size) ->
+					layerSizes[blobId] = size
+			.return([ layerSizes, blobIds.reverse() ])
 
 # Return percentage from current completed/total, handling edge cases.
 # Null total is considered an unknown total and 0 percentage is returned.
