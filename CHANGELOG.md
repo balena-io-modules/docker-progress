@@ -1,3 +1,7 @@
+# v2.4.1
+
+* Fix packaging to include new Coffee files
+
 # v2.4.0
 
 * Deprecated support for Docker<1.10
