@@ -1,3 +1,6 @@
+* Deprecated support for Docker<1.10
+* Added support for pulling from and pushing to registry v2
+
 # v2.3.3
 
 * Fixed downloading the entire layer to get the size

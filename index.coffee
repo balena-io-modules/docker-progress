@@ -1,135 +1,19 @@
 _ = require 'lodash'
+semver = require 'semver'
 Promise = require 'bluebird'
 Docker = require 'docker-toolbelt'
-request = require 'request'
 
-request = request.defaults(
-	gzip: true
-	timeout: 30000
-)
-request = Promise.promisifyAll(request, multiArgs: true)
+LEGACY_DOCKER_VERSION = '1.10.0'
+DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
-class Registry
-	constructor: (registry, @version) ->
-		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
-		if not match
-			throw new Error("Could not parse the registry: #{registry}")
-
-		[ ..., @registry, port = 443 ] = match
-		@port = _.parseInt(port)
-		if _.isNaN(@port)
-			throw new TypeError("Port must be a valid integer, got '#{port}'")
-
-		@protocol = if @port is 443 then 'https' else 'http'
-
-	get: (path) ->
-		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
-	# Convert to string in the format registry.tld:port
-	toString: ->
-		return "#{@registry}:#{@port}"
-
-exports.RegistryV1 = class RegistryV1 extends Registry
-	# Get the id of an image on a given registry and tag.
-	getImageId: (imageName, tagName) ->
-		@get("/v1/repositories/#{imageName}/tags")
-		.spread (res, data) =>
-			if res.statusCode == 404
-				throw new Error("No such image #{imageName} on registry #{@registry}")
-			if res.statusCode >= 400
-				throw new Error("Failed to get image tags of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
-			tags = JSON.parse(data)
-			if !tags[tagName]?
-				throw new Error("Could not find tag #{tagName} for image #{imageName}")
-			return tags[tagName]
-
-	# Return the ids of the layers of an image.
-	getImageHistory: (imageId) ->
-		@get("/v1/images/#{imageId}/ancestry")
-		.spread (res, data) =>
-			if res.statusCode >= 400
-				throw new Error("Failed to get image ancestry of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
-			history = JSON.parse(data)
-			return history
-
-	# Return the number of bytes docker has to download to pull this image (or layer).
-	getImageDownloadSize: (imageId) ->
-		@get("/v1/images/#{imageId}/json")
-		.spread (res, data) =>
-			if res.statusCode >= 400
-				throw new Error("Failed to get image download size of #{imageId} from #{@registry}. Status code: #{res.statusCode}")
-			return parseInt(res.headers['x-docker-size'])
-
-	getLayerDownloadSizes: (imageName, tagName) ->
-		layerSizes = {}
-		layerIds = []
-		@getImageId(imageName, tagName)
-		.then (imageId) =>
-			@getImageHistory(imageId)
-		.map (layerId) =>
-			layerIds.push(layerId)
-			@getImageDownloadSize(layerId)
-			.then (size) ->
-				layerSizes[layerId] = size
-		.return([ layerSizes, layerIds ])
-
-exports.RegistryV2 = class RegistryV2
-	constructor: (registry, version) ->
-		match = registry.match(/^([^\/:]+)(?::([^\/]+))?$/)
-		if not match
-			throw new Error("Could not parse the registry: #{registry}")
-
-		[ ..., @registry, port = 443 ] = match
-		@port = _.parseInt(port)
-		if _.isNaN(@port)
-			throw new TypeError("Port must be a valid integer, got '#{port}'")
-
-		@protocol = if @port is 443 then 'https' else 'http'
-
-	get: (path) ->
-		request.getAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
-	head: (path) ->
-		request.headAsync("#{@protocol}://#{@registry}:#{@port}#{path}")
-
-	# Return the ids of the layers of an image.
-	getImageLayers: (imageName, tagName) ->
-		@get("/v2/#{imageName}/manifests/#{tagName}")
-		.spread (res, data) =>
-			if res.statusCode >= 400
-				throw new Error("Failed to get image ancestry of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
-			_.map(JSON.parse(data).fsLayers, 'blobSum')
-
-	# Return the number of bytes docker has to download to pull this blob.
-	getLayerDownloadSize: (imageName, blobId) ->
-		@head("/v2/#{imageName}/blobs/#{blobId}")
-		.spread (res, data) =>
-			if res.statusCode >= 400
-				throw new Error("Failed to get image download size of #{imageName} from #{@registry}. Status code: #{res.statusCode}")
-			return parseInt(res.headers['content-length'])
-
-	# Gives download size per layer (blob)
-	getLayerDownloadSizes: (imageName, tagName) ->
-		layerSizes = {}
-		layerIds = []
-		@getImageLayers(imageName, tagName)
-		.map (blobId) =>
-			layerIds.unshift(blobId)
-			@getLayerDownloadSize(imageName, blobId)
-			.then (size) ->
-				layerSizes[blobId] = size
-		.return([ layerSizes, layerIds ])
-
-# Return percentage from current completed/total, handling edge cases.
-# Null total is considered an unknown total and 0 percentage is returned.
-calculatePercentage = (completed, total) ->
-	if not total?
-		percentage = 0 # report 0% if unknown total size
-	else if total is 0
-		percentage = 100 # report 100% if 0 total size
-	else
-		percentage = Math.min(100, (100 * completed) // total)
-	return percentage
+# Builds and returns a Docker-like progress bar like this:
+# [==================================>               ] 64%
+renderProgress = (percentage, stepCount) ->
+	percentage = _.clamp(percentage, 0, 100)
+	barCount = stepCount * percentage // 100
+	spaceCount = stepCount - barCount
+	bar = "[#{_.repeat('=', barCount)}>#{_.repeat(' ', spaceCount)}]"
+	return "#{bar} #{percentage}%"
 
 onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	evts = []
@@ -151,13 +35,122 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
 
-getLongId = (shortId, layerIds) ->
-	if not shortId?
-		throw new Error('Progress event missing layer id. Progress not correct.')
-	longId = _.find(layerIds, (id) -> _.startsWith(id, shortId))
-	if not longId?
-		throw new Error("Progress error: Unknown layer #{shortId} referenced by docker. Progress not correct.")
-	return longId
+class ProgressTracker
+	constructor: (@coalesceBelow = 0) ->
+		@layers = {}
+
+	addLayer: (id) ->
+		@layers[id] = { progress: null, coalesced: false }
+
+	updateLayer: (id, progress) ->
+		return if not id?
+		@addLayer(id) if not @layers[id]
+		@patchProgressEvent(progress)
+		@layers[id].coalesced = not @layers[id].progress? and progress.total < @coalesceBelow
+		@layers[id].progress = (progress.current / progress.total) || 0 # prevent NaN when .total = 0
+
+	finishLayer: (id) ->
+		@updateLayer(id, { current: 1, total: 1 })
+
+	getProgress: ->
+		layers = _.filter(@layers, coalesced: false)
+		avgProgress = _.meanBy(layers, 'progress') || 0
+		return Math.round(100 * avgProgress)
+
+	patchProgressEvent: (progress) ->
+		# some events arrive without .total
+		progress.total ?= progress.current
+		# some events arrive with .current > .total
+		progress.current = Math.min(progress.current, progress.total)
+
+class ProgressReporter
+	constructor: (@renderProgress) -> #
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
+	pullProgress: Promise.method (image, onProgress) ->
+		progressRenderer = @renderProgress
+		downloadProgressTracker = new ProgressTracker(100 * 1024) # 100 KB
+		extractionProgressTracker = new ProgressTracker(1024 * 1024) # 1 MB
+		lastPercentage = 0
+		return (evt) ->
+			try
+				{ id, status } = evt
+
+				if status is 'Pulling fs layer'
+					downloadProgressTracker.addLayer(id)
+					extractionProgressTracker.addLayer(id)
+				else if status is 'Downloading'
+					downloadProgressTracker.updateLayer(id, evt.progressDetail)
+				else if status is 'Extracting'
+					extractionProgressTracker.updateLayer(id, evt.progressDetail)
+				else if status is 'Download complete'
+					downloadProgressTracker.finishLayer(id)
+				else if status is 'Pull complete'
+					extractionProgressTracker.finishLayer(id)
+				else if status is 'Already exists'
+					downloadProgressTracker.finishLayer(id)
+					extractionProgressTracker.finishLayer(id)
+
+				if status.startsWith('Status: Image is up to date for ') or status.startsWith('Status: Downloaded newer image for ')
+					downloadedPercentage = 100
+					extractedPercentage = 100
+				else
+					downloadedPercentage = downloadProgressTracker.getProgress()
+					extractedPercentage = extractionProgressTracker.getProgress()
+
+				percentage = (downloadedPercentage + extractedPercentage) // 2
+				percentage = lastPercentage = Math.max(percentage, lastPercentage)
+
+				onProgress _.merge evt, {
+					percentage
+					downloadedPercentage
+					extractedPercentage
+					totalProgress: progressRenderer(percentage)
+				}
+			catch err
+				console.warn('Progress error:', err.message ? err)
+
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
+	pushProgress: Promise.method (image, onProgress) ->
+		progressRenderer = @renderProgress
+		progressTracker = new ProgressTracker(100 * 1024) # 100 KB
+		lastPercentage = 0
+		return (evt) ->
+			try
+				{ id, status } = evt
+
+				pushMatch = /Image (.*) already pushed/.exec(status)
+
+				id ?= pushMatch?[1]
+				status ?= ''
+
+				if status is 'Preparing'
+					progressTracker.addLayer(id)
+				else if status is 'Pushing' and evt.progressDetail.current?
+					progressTracker.updateLayer(id, evt.progressDetail)
+				# registry v2 statuses
+				else if _.includes(['Pushed', 'Layer already exists', 'Image already exists'], status) or /^Mounted from /.test(status)
+					progressTracker.finishLayer(id)
+				# registry v1 statuses
+				else if pushMatch? or _.includes(['Already exists', 'Image successfully pushed'], status)
+					progressTracker.finishLayer(id)
+
+				percentage = if status.startsWith('latest: digest: ') or status.startsWith('Pushing tag for rev ')
+					100
+				else
+					progressTracker.getProgress()
+
+				percentage = lastPercentage = Math.max(percentage, lastPercentage)
+
+				onProgress _.merge evt, {
+					id
+					percentage
+					totalProgress: progressRenderer(percentage)
+				}
+			catch err
+				console.warn('Progress error:', err.message ? err)
 
 exports.DockerProgress = class DockerProgress
 	constructor: (dockerOpts) ->
@@ -165,6 +158,39 @@ exports.DockerProgress = class DockerProgress
 			return new DockerProgress(dockerOpts)
 
 		@docker = new Docker(dockerOpts)
+		@reporter = null
+
+	getProgressRenderer: (stepCount = DEFAULT_PROGRESS_BAR_STEP_COUNT) ->
+		return (percentage) ->
+			renderProgress(percentage, stepCount)
+
+	getProgressReporter: ->
+		return @reporter if @reporter?
+		docker = @docker
+		renderer = @getProgressRenderer()
+		@reporter = docker.versionAsync().then (res) ->
+			version = res['Version']
+			if version? and semver.lt(version, LEGACY_DOCKER_VERSION)
+				LegacyProgressReporter = require('./legacy').ProgressReporter
+				return new LegacyProgressReporter(renderer, docker)
+			else
+				return new ProgressReporter(renderer)
+
+	aggregateProgress: (count, onProgress) ->
+		renderer = @getProgressRenderer()
+		states = _.times(count, -> percentage: 0)
+		return _.times count, (index) ->
+			return (evt) ->
+				# update current reporter state
+				states[index].percentage = evt.percentage
+				# update totals
+				percentage = _.sumBy(states, 'percentage') // (states.length || 1)
+				# update event
+				evt.totalProgress = renderer(percentage)
+				evt.percentage = percentage
+				evt.progressIndex = index
+				# call callback with aggregate event
+				onProgress(evt)
 
 	# Pull docker image calling onProgress with extended progress info regularly
 	pull: (image, onProgress, callback) ->
@@ -186,104 +212,14 @@ exports.DockerProgress = class DockerProgress
 				@docker.modem.followProgress(stream, callback, onProgress)
 		.nodeify(callback)
 
-	getRegistryAndName: (image) ->
-		@docker.getRegistryAndName(image)
-		.then ({ registry, imageName, tagName }) ->
-			request.getAsync("https://#{registry}/v2")
-			.get(0)
-			.then (res) ->
-				if res.statusCode == 404 # assume v1 if not v2
-					registry = new RegistryV1(registry)
-				else
-					registry = new RegistryV2(registry)
-				return { registry, imageName, tagName }
-
-	# Get download size of the layers of an image.
-	# The object returned has layer ids as keys and their download size as values.
-	# Download size is the size that docker will download if the image will be pulled now.
-	# If some layer is already downloaded, it will return 0 size for that layer.
-	getLayerDownloadSizes: (image) ->
-		@getRegistryAndName(image)
-		.then ({ registry, imageName, tagName }) ->
-			registry.getLayerDownloadSizes(imageName, tagName)
-
-	# Get size of all layers of a local image
-	# "image" is a string, the name of the docker image
-	getImageLayerSizes: (image) ->
-		image = @docker.getImage(image)
-		layers = image.historyAsync()
-		lastLayer = image.inspectAsync()
-		Promise.join layers, lastLayer, (layers, lastLayer) ->
-			layers.push(lastLayer)
-			_(layers)
-			.keyBy('Id')
-			.mapValues('Size')
-			.mapKeys (v, id) ->
-				id.replace(/^sha256:/, '')
-			.value()
-
-	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
-		@getLayerDownloadSizes(image)
-		.spread (layerSizes, remoteLayerIds) ->
-			layerIds = {} # map from remote to local ids
-			totalSize = _.sum(_.values(layerSizes))
-			completedSize = 0
-			currentDownloadedSize = {}
-			return (evt) ->
-				try
-					{ status } = evt
-					shortId = evt.id
-					if evt.progressDetail? and not layerIds[shortId]?
-						remoteId = remoteLayerIds.find (id) ->
-							id.replace(/^sha256:/, '').startsWith(shortId)
-						if not remoteId?
-							remoteId = remoteLayerIds[_.size(layerIds)]
-						layerIds[shortId] = remoteId
-					if status is 'Downloading'
-						currentDownloadedSize[shortId] = evt.progressDetail.current
-					else if status is 'Download complete' or status is 'Already exists'
-						remoteId = layerIds[shortId]
-						completedSize += layerSizes[remoteId]
-						currentDownloadedSize[shortId] = 0
-					else if status.match(/^Status: Image is up to date for /)
-						completedSize = totalSize
-						currentDownloadedSize = {}
+		@getProgressReporter().then (reporter) ->
+			reporter.pullProgress(image, onProgress)
 
-					downloadedSize = completedSize + _.sum(_.values(currentDownloadedSize))
-					percentage = calculatePercentage(downloadedSize, totalSize)
-
-					onProgress(_.merge(evt, { downloadedSize, totalSize, percentage }))
-				catch err
-					console.warn('Progress error:', err.message ? err)
-					totalSize = null
-
-	# Create a stream that transforms `docker.modem.followProgress` onProgress events to include total progress metrics.
+	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
-		@getImageLayerSizes(image)
-		.then (layerSizes) ->
-			layerIds = _.keys(layerSizes)
-			layerPushedSize = {}
-			completedSize = 0
-			totalSize = _.sum(_.values(layerSizes))
-			return (evt) ->
-				try
-					{ status } = evt
-					shortId = evt.id
-					pushMatch = /Image (.*) already pushed/.exec(status)
-					if status is 'Pushing' and evt.progressDetail.current?
-						longId = getLongId(shortId, layerIds)
-						if longId?
-							layerPushedSize[longId] = evt.progressDetail.current
-					else if status is 'Layer already exists' or status is 'Image successfully pushed' or pushMatch
-						shortId or= pushMatch[1]
-						longId = getLongId(shortId, layerIds)
-						if longId?
-							completedSize += layerSizes[longId]
-							layerPushedSize[longId] = 0
-					pushedSize = completedSize + _.sum(_.values(layerPushedSize))
-					percentage = calculatePercentage(pushedSize, totalSize)
-					onProgress(_.merge(evt, { pushedSize, totalSize, percentage }))
-				catch err
-					console.warn('Progress error:', err.message ? err)
-					totalSize = null
+		@getProgressReporter().then (reporter) ->
+			reporter.pushProgress(image, onProgress)
