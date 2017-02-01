@@ -1,3 +1,5 @@
+# v2.4.0
+
 * Deprecated support for Docker<1.10
 * Added support for pulling from and pushing to registry v2
 
