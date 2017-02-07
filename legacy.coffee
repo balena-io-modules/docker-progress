@@ -1,3 +1,5 @@
+# These are deprecated and will be removed on 3.0
+
 _ = require 'lodash'
 Promise = require 'bluebird'
 request = require 'request'
@@ -7,6 +9,36 @@ request = request.defaults(
 	timeout: 30000
 )
 request = Promise.promisifyAll(request, multiArgs: true)
+
+exports.getRegistryAndName = getRegistryAndName = (docker, image) ->
+	docker.getRegistryAndName(image)
+	.then ({ registry, imageName, tagName }) ->
+		request.getAsync("https://#{registry}/v2")
+		.get(0)
+		.then (res) ->
+			if res.statusCode == 404 # assume v1 if not v2
+				registry = new RegistryV1(registry)
+			else
+				registry = new RegistryV2(registry)
+			return { registry, imageName, tagName }
+
+exports.getLayerDownloadSizes = (docker, image) ->
+	getRegistryAndName(docker, image)
+	.then ({ registry, imageName, tagName }) ->
+		registry.getLayerDownloadSizes(imageName, tagName)
+
+exports.getImageLayerSizes = (docker, image) ->
+	image = docker.getImage(image)
+	layers = image.historyAsync()
+	lastLayer = image.inspectAsync()
+	Promise.join layers, lastLayer, (layers, lastLayer) ->
+		layers.push(lastLayer)
+		_(layers)
+		.keyBy('Id')
+		.mapValues('Size')
+		.mapKeys (v, id) ->
+			id.replace(/^sha256:/, '')
+		.value()
 
 class Registry
 	constructor: (registry, @version) ->
@@ -31,8 +63,9 @@ class Registry
 	toString: ->
 		return "#{@registry}:#{@port}"
 
-class RegistryV1 extends Registry
-	getVersion: -> 1
+exports.RegistryV1 = class RegistryV1 extends Registry
+	constructor: (registry) ->
+		super(registry, 1)
 
 	# Get the id of an image on a given registry and tag.
 	getImageId: (imageName, tagName) ->
@@ -76,8 +109,9 @@ class RegistryV1 extends Registry
 					layerSizes[layerId] = size
 			.return([ layerSizes, layerIds ])
 
-class RegistryV2 extends Registry
-	getVersion: -> 2
+exports.RegistryV2 = class RegistryV2 extends Registry
+	constructor: (registry) ->
+		super(registry, 2)
 
 	# Return the ids of the layers of an image.
 	getImageLayers: (imageName, tagName) ->
