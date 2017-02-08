@@ -1,3 +1,5 @@
+* Restore public-facing APIs that were incorrectly removed in v2.4.0
+
 # v2.4.1
 
 * Fix packaging to include new Coffee files

@@ -3,6 +3,12 @@ semver = require 'semver'
 Promise = require 'bluebird'
 Docker = require 'docker-toolbelt'
 
+legacy = require './legacy'
+
+# These are deprecated and will be removed on 3.0
+exports.RegistryV1 = legacy.RegistryV1
+exports.RegistryV2 = legacy.RegistryV2
+
 LEGACY_DOCKER_VERSION = '1.10.0'
 DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
@@ -171,8 +177,7 @@ exports.DockerProgress = class DockerProgress
 		@reporter = docker.versionAsync().then (res) ->
 			version = res['Version']
 			if version? and semver.lt(version, LEGACY_DOCKER_VERSION)
-				LegacyProgressReporter = require('./legacy').ProgressReporter
-				return new LegacyProgressReporter(renderer, docker)
+				return new legacy.ProgressReporter(renderer, docker)
 			else
 				return new ProgressReporter(renderer)
 
@@ -223,3 +228,20 @@ exports.DockerProgress = class DockerProgress
 	pushProgress: (image, onProgress) ->
 		@getProgressReporter().then (reporter) ->
 			reporter.pushProgress(image, onProgress)
+
+	# The following are deprecated and will be removed on 3.0
+
+	getRegistryAndName: (image) ->
+		legacy.getRegistryAndName(@docker, image)
+
+	# Get download size of the layers of an image.
+	# The object returned has layer ids as keys and their download size as values.
+	# Download size is the size that docker will download if the image will be pulled now.
+	# If some layer is already downloaded, it will return 0 size for that layer.
+	getLayerDownloadSizes: (image) ->
+		legacy.getLayerDownloadSizes(@docker, image)
+
+	# Get size of all layers of a local image
+	# "image" is a string, the name of the docker image
+	getImageLayerSizes: (image) ->
+		legacy.getImageLayerSizes(@docker, image)
