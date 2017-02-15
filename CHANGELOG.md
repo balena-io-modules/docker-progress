@@ -1,3 +1,5 @@
+# v2.4.3
+
 * Fixed getting registry version
 
 # v2.4.2

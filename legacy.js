@@ -266,7 +266,7 @@
         var imageName, registry, tagName;
         registry = arg.registry, imageName = arg.imageName, tagName = arg.tagName;
         return registry.getLayerDownloadSizes(imageName, tagName).spread(function(layerSizes, remoteLayerIds) {
-          return [registry.getVersion(), layerSizes, remoteLayerIds];
+          return [registry.version, layerSizes, remoteLayerIds];
         });
       });
     };
