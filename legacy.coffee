@@ -183,7 +183,7 @@ exports.ProgressReporter = class ProgressReporter
 		.then ({ registry, imageName, tagName }) ->
 			registry.getLayerDownloadSizes(imageName, tagName)
 			.spread (layerSizes, remoteLayerIds) ->
-				[ registry.getVersion(), layerSizes, remoteLayerIds ]
+				[ registry.version, layerSizes, remoteLayerIds ]
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
 	# events to include total progress metrics.

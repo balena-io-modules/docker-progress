@@ -1,3 +1,5 @@
+* Fixed getting registry version
+
 # v2.4.2
 
 * Restore public-facing APIs that were incorrectly removed in v2.4.0
