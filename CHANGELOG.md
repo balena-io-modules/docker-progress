@@ -1,3 +1,7 @@
+# v2.4.4
+
+* Improved parsing Docker client version anticipating version-scheme changes in Docker
+
 # v2.4.3
 
 * Fixed getting registry version

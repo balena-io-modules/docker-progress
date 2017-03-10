@@ -227,7 +227,7 @@
       return this.reporter = docker.versionAsync().then(function(res) {
         var version;
         version = res['Version'];
-        if ((version != null) && semver.lt(version, LEGACY_DOCKER_VERSION)) {
+        if (semver.valid(version) && semver.lt(version, LEGACY_DOCKER_VERSION)) {
           return new legacy.ProgressReporter(renderer, docker);
         } else {
           return new ProgressReporter(renderer);
