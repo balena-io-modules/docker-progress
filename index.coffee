@@ -176,7 +176,7 @@ exports.DockerProgress = class DockerProgress
 		renderer = @getProgressRenderer()
 		@reporter = docker.versionAsync().then (res) ->
 			version = res['Version']
-			if version? and semver.lt(version, LEGACY_DOCKER_VERSION)
+			if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
 				return new legacy.ProgressReporter(renderer, docker)
 			else
 				return new ProgressReporter(renderer)
