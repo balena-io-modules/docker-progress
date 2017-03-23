@@ -198,10 +198,15 @@ exports.DockerProgress = class DockerProgress
 				onProgress(evt)
 
 	# Pull docker image calling onProgress with extended progress info regularly
-	pull: (image, onProgress, callback) ->
+	pull: (image, options, onProgress, callback) ->
+		if typeof options is 'function'
+			callback = onProgress
+			onProgress = options
+			options = null
+
 		onProgressPromise = @pullProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
-		@docker.pullAsync(image)
+		@docker.pullAsync(image, options)
 		.then (stream) =>
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
