@@ -198,10 +198,9 @@ exports.DockerProgress = class DockerProgress
 				onProgress(evt)
 
 	# Pull docker image calling onProgress with extended progress info regularly
-	pull: (image, options, onProgress, callback) ->
+	pull: (image, onProgress, options, callback) ->
 		if typeof options is 'function'
-			callback = onProgress
-			onProgress = options
+			callback = options
 			options = null
 
 		onProgressPromise = @pullProgress(image, onProgress)
