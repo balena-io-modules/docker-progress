@@ -1,3 +1,7 @@
+# v2.5.0
+
+* Forward options object to docker pull
+
 # v2.4.4
 
 * Improved parsing Docker client version anticipating version-scheme changes in Docker

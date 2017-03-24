@@ -256,11 +256,15 @@
       });
     };
 
-    DockerProgress.prototype.pull = function(image, onProgress, callback) {
+    DockerProgress.prototype.pull = function(image, onProgress, options, callback) {
       var onProgressPromise;
+      if (typeof options === 'function') {
+        callback = options;
+        options = null;
+      }
       onProgressPromise = this.pullProgress(image, onProgress);
       onProgress = onProgressHandler(onProgressPromise, onProgress);
-      return this.docker.pullAsync(image).then((function(_this) {
+      return this.docker.pullAsync(image, options).then((function(_this) {
         return function(stream) {
           return Promise.fromCallback(function(callback) {
             return _this.docker.modem.followProgress(stream, callback, onProgress);
