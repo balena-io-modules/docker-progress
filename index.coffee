@@ -159,11 +159,15 @@ class ProgressReporter
 				console.warn('Progress error:', err.message ? err)
 
 exports.DockerProgress = class DockerProgress
-	constructor: (dockerOpts) ->
+	constructor: (opts = {}) ->
 		if !(this instanceof DockerProgress)
-			return new DockerProgress(dockerOpts)
-
-		@docker = new Docker(dockerOpts)
+			return new DockerProgress(opts)
+		if opts.dockerToolbelt?
+			if !_.isFunction(opts.dockerToolbelt.getRegistryAndName) or !_.isFunction(opts.dockerToolbelt.version().then)
+				throw new Error('Invalid dockerToolbelt option, please use an instance of docker-toolbelt v3.0.1 or higher')
+			@docker = opts.dockerToolbelt
+		else
+			@docker = new Docker(opts)
 		@reporter = null
 
 	getProgressRenderer: (stepCount = DEFAULT_PROGRESS_BAR_STEP_COUNT) ->
@@ -174,7 +178,7 @@ exports.DockerProgress = class DockerProgress
 		return @reporter if @reporter?
 		docker = @docker
 		renderer = @getProgressRenderer()
-		@reporter = docker.versionAsync().then (res) ->
+		@reporter = docker.version().then (res) ->
 			version = res['Version']
 			if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
 				return new legacy.ProgressReporter(renderer, docker)
@@ -205,7 +209,7 @@ exports.DockerProgress = class DockerProgress
 
 		onProgressPromise = @pullProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
-		@docker.pullAsync(image, options)
+		@docker.pull(image, options)
 		.then (stream) =>
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
@@ -215,7 +219,7 @@ exports.DockerProgress = class DockerProgress
 	push: (image, onProgress, options, callback) ->
 		onProgressPromise = @pushProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
-		@docker.getImage(image).pushAsync(options)
+		@docker.getImage(image).push(options)
 		.then (stream) =>
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
