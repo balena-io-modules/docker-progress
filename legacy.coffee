@@ -29,8 +29,8 @@ exports.getLayerDownloadSizes = (docker, image) ->
 
 exports.getImageLayerSizes = (docker, image) ->
 	image = docker.getImage(image)
-	layers = image.historyAsync()
-	lastLayer = image.inspectAsync()
+	layers = image.history()
+	lastLayer = image.inspect()
 	Promise.join layers, lastLayer, (layers, lastLayer) ->
 		layers.push(lastLayer)
 		_(layers)
@@ -263,8 +263,8 @@ exports.ProgressReporter = class ProgressReporter
 	# "image" is a string, the name of the docker image
 	getImageLayerSizes: (image) ->
 		image = @docker.getImage(image)
-		layers = image.historyAsync()
-		lastLayer = image.inspectAsync()
+		layers = image.history()
+		lastLayer = image.inspect()
 		Promise.join layers, lastLayer, (layers, lastLayer) ->
 			layers.push(lastLayer)
 			_(layers)
