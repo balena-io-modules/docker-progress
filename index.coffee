@@ -163,7 +163,7 @@ exports.DockerProgress = class DockerProgress
 		if !(this instanceof DockerProgress)
 			return new DockerProgress(opts)
 		if opts.dockerToolbelt?
-			if !_.isFunction(opts.dockerToolbelt.getRegistryAndName) or !_.isFunction(opts.dockerToolbelt.version().then)
+			if !_.isFunction(opts.dockerToolbelt.getRegistryAndName) or !opts.dockerToolbelt.modem?.Promise?
 				throw new Error('Invalid dockerToolbelt option, please use an instance of docker-toolbelt v3.0.1 or higher')
 			@docker = opts.dockerToolbelt
 		else
