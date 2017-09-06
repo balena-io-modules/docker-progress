@@ -143,7 +143,7 @@ class ProgressReporter
 				else if pushMatch? or _.includes(['Already exists', 'Image successfully pushed'], status)
 					progressTracker.finishLayer(id)
 
-				percentage = if status.startsWith('latest: digest: ') or status.startsWith('Pushing tag for rev ')
+				percentage = if status.search(/.+: digest: /) == 0 or status.startsWith('Pushing tag for rev ')
 					100
 				else
 					progressTracker.getProgress()
