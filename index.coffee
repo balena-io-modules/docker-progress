@@ -48,7 +48,7 @@ class ProgressTracker
 	addLayer: (id) ->
 		@layers[id] = { progress: null, coalesced: false }
 
-	linkLayer: (tracker, id) ->
+	linkLayer: (id, tracker) ->
 		@layers[id] = tracker.layers[id]
 
 	updateLayer: (id, progress) ->
@@ -90,7 +90,16 @@ class ProgressReporter
 					downloadProgressTracker.addLayer(id)
 					extractionProgressTracker.addLayer(id)
 				else if status is 'Ready to download'
-					downloadProgressTracker.linkLayer(extractionProgressTracker, id)
+					# resin-os/docker extracts layers as they're downloaded and omits
+					# download stage events completely, only emitting extraction events.
+					# We determine this is the case from the 'Ready to download' event
+					# emitted once for each layer by resin-os/docker at the start of the
+					# pull. We then create a "link" of the progress record for the layer
+					# between the download and extraction progress trackers by sharing
+					# the record "pointer", so that later events affect progress in both
+					# trackers. This simplifies handling this case a lot, because it
+					# allows us to continue to assume there's always two stages in pull.
+					downloadProgressTracker.linkLayer(id, extractionProgressTracker)
 				else if status is 'Downloading'
 					downloadProgressTracker.updateLayer(id, evt.progressDetail)
 				else if status is 'Extracting'
