@@ -48,6 +48,9 @@ class ProgressTracker
 	addLayer: (id) ->
 		@layers[id] = { progress: null, coalesced: false }
 
+	linkLayer: (tracker, id) ->
+		@layers[id] = tracker.layers[id]
+
 	updateLayer: (id, progress) ->
 		return if not id?
 		@addLayer(id) if not @layers[id]
@@ -86,6 +89,8 @@ class ProgressReporter
 				if status is 'Pulling fs layer'
 					downloadProgressTracker.addLayer(id)
 					extractionProgressTracker.addLayer(id)
+				else if status is 'Ready to download'
+					downloadProgressTracker.linkLayer(extractionProgressTracker, id)
 				else if status is 'Downloading'
 					downloadProgressTracker.updateLayer(id, evt.progressDetail)
 				else if status is 'Extracting'
