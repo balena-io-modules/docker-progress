@@ -12,6 +12,9 @@ exports.RegistryV2 = legacy.RegistryV2
 LEGACY_DOCKER_VERSION = '1.10.0'
 DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
+isBalaena = (versionInfo) ->
+	versionInfo['Engine'] is 'balaena'
+
 # Builds and returns a Docker-like progress bar like this:
 # [==================================>               ] 64%
 renderProgress = (percentage, stepCount) ->
@@ -172,6 +175,30 @@ class ProgressReporter
 			catch err
 				console.warn('Progress error:', err.message ? err)
 
+class BalaenaProgressReporter extends ProgressReporter
+	pullProgress: Promise.method (image, onProgress) ->
+		progressRenderer = @renderProgress
+		lastPercentage = 0
+		return (evt) ->
+			try
+				{ id } = evt
+
+				if id isnt 'Total'
+					return
+
+				{ current, total } = evt.progressDetail
+				percentage = current * 100 // total
+				percentage = lastPercentage = Math.max(percentage, lastPercentage)
+
+				onProgress _.merge evt, {
+					percentage
+					downloadedPercentage: current
+					extractedPercentage: current
+					totalProgress: progressRenderer(percentage)
+				}
+			catch err
+				console.warn('Progress error:', err.message ? err)
+
 exports.DockerProgress = class DockerProgress
 	constructor: (opts = {}) ->
 		if !(this instanceof DockerProgress)
@@ -194,7 +221,9 @@ exports.DockerProgress = class DockerProgress
 		renderer = @getProgressRenderer()
 		@reporter = docker.version().then (res) ->
 			version = res['Version']
-			if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
+			if isBalaena(res)
+				return new BalaenaProgressReporter(renderer)
+			else if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
 				return new legacy.ProgressReporter(renderer, docker)
 			else
 				return new ProgressReporter(renderer)
