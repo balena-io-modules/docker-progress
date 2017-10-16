@@ -13,7 +13,7 @@ LEGACY_DOCKER_VERSION = '1.10.0'
 DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
 isBalaena = (versionInfo) ->
-	versionInfo['Engine'] is 'balaena'
+	versionInfo['Engine'] in [ 'balena', 'balaena' ]
 
 # Builds and returns a Docker-like progress bar like this:
 # [==================================>               ] 64%
