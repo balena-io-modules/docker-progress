@@ -1,6 +1,6 @@
 {
   "name": "docker-progress",
-  "version": "2.7.2",
+  "version": "2.8.0",
   "description": "This module provides additional progress mechanics on top of dockerode",
   "main": "index.js",
   "repository": {
@@ -8,6 +8,7 @@
     "url": "git@github.com:resin-io/docker-progress.git"
   },
   "author": "Pagan Gazzard <page@resin.io>",
+  "types": "index.d.ts",
   "scripts": {
     "lint": "resin-lint index.coffee legacy.coffee",
     "test": "npm run lint",
