@@ -8,6 +8,7 @@
     "url": "git@github.com:resin-io/docker-progress.git"
   },
   "author": "Pagan Gazzard <page@resin.io>",
+  "types": "index.d.ts",
   "scripts": {
     "lint": "resin-lint index.coffee legacy.coffee",
     "test": "npm run lint",
