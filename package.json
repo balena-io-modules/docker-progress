@@ -16,6 +16,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@types/bluebird": "^3.5.18",
     "bluebird": "^3.0.0",
     "docker-toolbelt": "^3.0.1",
     "lodash": "^4.0.0",
