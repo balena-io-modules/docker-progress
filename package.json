@@ -1,6 +1,6 @@
 {
   "name": "docker-progress",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "This module provides additional progress mechanics on top of dockerode",
   "main": "index.js",
   "repository": {
@@ -16,6 +16,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@types/bluebird": "^3.5.18",
     "bluebird": "^3.0.0",
     "docker-toolbelt": "^3.0.1",
     "lodash": "^4.0.0",

@@ -1,3 +1,5 @@
+import * as Promise from 'bluebird';
+
 declare module 'docker-progress' {
 
 	type ProgressCallback = (progressObj: any) => void;
