@@ -13,25 +13,21 @@ LEGACY_DOCKER_VERSION = '1.10.0'
 DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
 tryExtractDigestHash = (evt) ->
-	return null if !evt?
 	if evt.aux? and evt.aux.Digest?
 		return evt.aux.Digest
 	if _.isString(evt.status)
 		matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/)
-		if matchPull?
-			return matchPull[1]
+		return matchPull[1] if matchPull?
 
 # Extracts the digest value of an image from docker events
 # for push and pull operations, if no digest value is found
 # null is returned
 extractDigestHash = (stream) ->
-	if _.isArray(stream)
-		# iterator over the event stream in reverse order
-		# the digest event is one of the last ones.
-		for idx in [stream.length..0] by -1
-			hash = tryExtractDigestHash(stream[idx])
-			if hash?
-				return hash
+	# iterator over the event stream in reverse order
+	# the digest event is one of the last ones.
+	for idx in [stream.length - 1..0] by -1
+		hash = tryExtractDigestHash(stream[idx])
+		return hash if hash?
 	return null
 
 isBalaena = (versionInfo) ->
