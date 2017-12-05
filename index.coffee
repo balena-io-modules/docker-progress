@@ -12,6 +12,24 @@ exports.RegistryV2 = legacy.RegistryV2
 LEGACY_DOCKER_VERSION = '1.10.0'
 DEFAULT_PROGRESS_BAR_STEP_COUNT = 50
 
+tryExtractDigestHash = (evt) ->
+	if evt.aux? and evt.aux.Digest?
+		return evt.aux.Digest
+	if _.isString(evt.status)
+		matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/)
+		return matchPull[1] if matchPull?
+
+# Extracts the digest value of an image from docker events
+# for push and pull operations, if no digest value is found
+# null is returned
+extractDigestHash = (stream) ->
+	# iterator over the event stream in reverse order
+	# the digest event is one of the last ones.
+	for idx in [stream.length - 1..0] by -1
+		hash = tryExtractDigestHash(stream[idx])
+		return hash if hash?
+	return null
+
 isBalaena = (versionInfo) ->
 	versionInfo['Engine'] in [ 'balena', 'balaena' ]
 
@@ -256,6 +274,7 @@ exports.DockerProgress = class DockerProgress
 		.then (stream) =>
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
+		.then extractDigestHash
 		.nodeify(callback)
 
 	# Push docker image calling onProgress with extended progress info regularly
@@ -266,6 +285,7 @@ exports.DockerProgress = class DockerProgress
 		.then (stream) =>
 			Promise.fromCallback (callback) =>
 				@docker.modem.followProgress(stream, callback, onProgress)
+		.then extractDigestHash
 		.nodeify(callback)
 
 	# Create a stream that transforms `docker.modem.followProgress` onProgress
