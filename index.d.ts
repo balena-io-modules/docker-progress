@@ -15,14 +15,14 @@ declare module 'docker-progress' {
 			onProgress: ProgressCallback,
 			options: any,
 			callback?: ((err: Error, data: any) => void),
-		): Promise<any>;
+		): Promise<string>;
 
 		public push(
 			image: string,
 			onProgress: ProgressCallback,
 			options: any,
 			callback?: ((err: Error, data: any) => void),
-		): Promise<any>;
+		): Promise<string>;
 
 	}
 }
