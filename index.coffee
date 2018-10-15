@@ -30,8 +30,8 @@ extractDigestHash = (stream) ->
 		return hash if hash?
 	return null
 
-isBalaena = (versionInfo) ->
-	versionInfo['Engine'] in [ 'balena', 'balaena' ]
+isBalenaEngine = (versionInfo) ->
+	versionInfo['Engine'] in [ 'balena', 'balaena', 'balena-engine' ]
 
 # Builds and returns a Docker-like progress bar like this:
 # [==================================>               ] 64%
@@ -239,7 +239,7 @@ exports.DockerProgress = class DockerProgress
 		renderer = @getProgressRenderer()
 		@reporter = docker.version().then (res) ->
 			version = res['Version']
-			if isBalaena(res)
+			if isBalenaEngine(res)
 				return new BalaenaProgressReporter(renderer)
 			else if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
 				return new legacy.ProgressReporter(renderer, docker)
