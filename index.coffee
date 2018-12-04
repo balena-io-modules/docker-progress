@@ -2,6 +2,7 @@ _ = require 'lodash'
 semver = require 'semver'
 Promise = require 'bluebird'
 Docker = require 'docker-toolbelt'
+JSONStream = require 'JSONStream'
 
 legacy = require './legacy'
 
@@ -19,16 +20,25 @@ tryExtractDigestHash = (evt) ->
 		matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/)
 		return matchPull[1] if matchPull?
 
-# Extracts the digest value of an image from docker events
-# for push and pull operations, if no digest value is found
-# null is returned
-extractDigestHash = (stream) ->
-	# iterator over the event stream in reverse order
-	# the digest event is one of the last ones.
-	for idx in [stream.length - 1..0] by -1
-		hash = tryExtractDigestHash(stream[idx])
-		return hash if hash?
-	return null
+awaitRegistryStream = (stream, onProgress) ->
+	contentHash = null
+	new Promise (resolve, reject) ->
+
+		jsonStream = JSONStream.parse()
+
+		jsonStream.on 'data', (evt) ->
+			if typeof evt isnt 'object'
+				onProgress({})
+			else
+				# try to extract the digest before forwarding the
+				# object
+				maybeContent = tryExtractDigestHash(evt)
+				contentHash = maybeContent if maybeContent?
+				onProgress(evt)
+		jsonStream.on('error', reject)
+		jsonStream.on('end', -> resolve(contentHash))
+
+		stream.pipe(jsonStream)
 
 isBalenaEngine = (versionInfo) ->
 	versionInfo['Engine'] in [ 'balena', 'balaena', 'balena-engine' ]
@@ -96,7 +106,7 @@ class ProgressTracker
 class ProgressReporter
 	constructor: (@renderProgress) -> #
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# Create a stream that transforms docker daemon's onProgress
 	# events to include total progress metrics.
 	pullProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
@@ -152,7 +162,7 @@ class ProgressReporter
 			catch err
 				console.warn('Progress error:', err.message ? err)
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# Create a stream that transforms docker daemon's onProgress
 	# events to include total progress metrics.
 	pushProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
@@ -271,10 +281,8 @@ exports.DockerProgress = class DockerProgress
 		onProgressPromise = @pullProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.pull(image, options)
-		.then (stream) =>
-			Promise.fromCallback (callback) =>
-				@docker.modem.followProgress(stream, callback, onProgress)
-		.then extractDigestHash
+		.then (stream) ->
+			awaitRegistryStream(stream, onProgress)
 		.nodeify(callback)
 
 	# Push docker image calling onProgress with extended progress info regularly
@@ -282,19 +290,17 @@ exports.DockerProgress = class DockerProgress
 		onProgressPromise = @pushProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.getImage(image).push(options)
-		.then (stream) =>
-			Promise.fromCallback (callback) =>
-				@docker.modem.followProgress(stream, callback, onProgress)
-		.then extractDigestHash
+		.then (stream) ->
+			awaitRegistryStream(stream, onProgress)
 		.nodeify(callback)
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# Create a stream that transforms docker daemon's onProgress
 	# events to include total progress metrics.
 	pullProgress: (image, onProgress) ->
 		@getProgressReporter().then (reporter) ->
 			reporter.pullProgress(image, onProgress)
 
-	# Create a stream that transforms `docker.modem.followProgress` onProgress
+	# Create a stream that transforms docker daemon's onProgress
 	# events to include total progress metrics.
 	pushProgress: (image, onProgress) ->
 		@getProgressReporter().then (reporter) ->
