@@ -28,13 +28,17 @@ awaitRegistryStream = (stream, onProgress) ->
 
 		jsonStream.on 'data', (evt) ->
 			if typeof evt isnt 'object'
-				onProgress({})
+				evt = {}
 			else
 				# try to extract the digest before forwarding the
 				# object
 				maybeContent = tryExtractDigestHash(evt)
 				contentHash = maybeContent if maybeContent?
+			try
 				onProgress(evt)
+			catch error
+				stream.destroy(error)
+				reject(error)
 		jsonStream.on('error', reject)
 		jsonStream.on('end', -> resolve(contentHash))
 
@@ -56,18 +60,23 @@ onProgressHandler = (onProgressPromise, fallbackOnProgress) ->
 	evts = []
 	onProgress = (evt) ->
 		evts.push(evt)
+
+	handlePreviousEvents = (onProgress) ->
+		_.map evts, (evt) ->
+			try
+				onProgress(evt)
+		evts = []
+
 	# Once the onProgressPromise is fulfilled we switch `onProgress` to the real callback,
 	# or the fallback if it fails, and then call it with all the previously received events in order
 	onProgressPromise
 	.then (resolvedOnProgress) ->
 		onProgress = resolvedOnProgress
+		handlePreviousEvents(resolvedOnProgress)
 	.catch (e) ->
 		console.warn('error', e)
 		onProgress = fallbackOnProgress
-	.then ->
-		_.map evts, (evt) ->
-			try
-				onProgress(evt)
+		handlePreviousEvents(fallbackOnProgress)
 	# Return an indirect call to `onProgress` so that we can switch to the
 	# real onProgress function when the promise resolves
 	return (evt) -> onProgress(evt)
@@ -106,14 +115,21 @@ class ProgressTracker
 class ProgressReporter
 	constructor: (@renderProgress) -> #
 
-	# Create a stream that transforms docker daemon's onProgress
-	# events to include total progress metrics.
+	checkProgressError: (error, extraInfo) ->
+		prefix = "Progress error: [#{extraInfo}]"
+		console.warn(prefix, error.message ? error)
+		if error.message?.includes('unknown blob')
+			error.message = "#{prefix} #{error.message}"
+			throw error
+
+	# Return a promise that resolves to a stream event handler suitable for use
+	# as the handler of a docker daemon's onProgress events for an image pull.
 	pullProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
 		downloadProgressTracker = new ProgressTracker(100 * 1024) # 100 KB
 		extractionProgressTracker = new ProgressTracker(1024 * 1024) # 1 MB
 		lastPercentage = 0
-		return (evt) ->
+		return (evt) =>
 			try
 				{ id, status } = evt
 
@@ -160,7 +176,7 @@ class ProgressReporter
 					totalProgress: progressRenderer(percentage)
 				}
 			catch err
-				console.warn('Progress error:', err.message ? err)
+				@checkProgressError(err, "pull id=#{id} status=#{status}")
 
 	# Create a stream that transforms docker daemon's onProgress
 	# events to include total progress metrics.
@@ -168,7 +184,7 @@ class ProgressReporter
 		progressRenderer = @renderProgress
 		progressTracker = new ProgressTracker(100 * 1024) # 100 KB
 		lastPercentage = 0
-		return (evt) ->
+		return (evt) =>
 			try
 				{ id, status } = evt
 
@@ -201,13 +217,13 @@ class ProgressReporter
 					totalProgress: progressRenderer(percentage)
 				}
 			catch err
-				console.warn('Progress error:', err.message ? err)
+				@checkProgressError(err, "push id=#{id} status=#{status}")
 
-class BalaenaProgressReporter extends ProgressReporter
+class BalenaProgressReporter extends ProgressReporter
 	pullProgress: Promise.method (image, onProgress) ->
 		progressRenderer = @renderProgress
 		lastPercentage = 0
-		return (evt) ->
+		return (evt) =>
 			try
 				{ id } = evt
 
@@ -225,7 +241,7 @@ class BalaenaProgressReporter extends ProgressReporter
 					totalProgress: progressRenderer(percentage)
 				}
 			catch err
-				console.warn('Progress error:', err.message ? err)
+				@checkProgressError(err, "balena pull id=#{id}")
 
 exports.DockerProgress = class DockerProgress
 	constructor: (opts = {}) ->
@@ -250,7 +266,7 @@ exports.DockerProgress = class DockerProgress
 		@reporter = docker.version().then (res) ->
 			version = res['Version']
 			if isBalenaEngine(res)
-				return new BalaenaProgressReporter(renderer)
+				return new BalenaProgressReporter(renderer)
 			else if semver.valid(version) and semver.lt(version, LEGACY_DOCKER_VERSION)
 				return new legacy.ProgressReporter(renderer, docker)
 			else
