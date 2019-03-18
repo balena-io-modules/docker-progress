@@ -26,6 +26,6 @@
   },
   "devDependencies": {
     "coffee-script": "~1.11.0",
-    "resin-lint": "^1.4.0"
+    "resin-lint": "^3.0.1"
   }
 }

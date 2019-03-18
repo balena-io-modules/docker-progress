@@ -118,9 +118,8 @@ class ProgressReporter
 	checkProgressError: (error, extraInfo) ->
 		prefix = "Progress error: [#{extraInfo}]"
 		console.warn(prefix, error.message ? error)
-		if error.message?.includes('unknown blob')
-			error.message = "#{prefix} #{error.message}"
-			throw error
+		error.message = "#{prefix} #{error.message}"
+		throw error
 
 	# Return a promise that resolves to a stream event handler suitable for use
 	# as the handler of a docker daemon's onProgress events for an image pull.
@@ -132,6 +131,8 @@ class ProgressReporter
 		return (evt) =>
 			try
 				{ id, status } = evt
+				id ?= ''
+				status ?= ''
 
 				if status is 'Pulling fs layer'
 					downloadProgressTracker.addLayer(id)
