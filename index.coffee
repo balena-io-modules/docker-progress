@@ -20,7 +20,7 @@ tryExtractDigestHash = (evt) ->
 		matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/)
 		return matchPull[1] if matchPull?
 
-awaitRegistryStream = (stream, onProgress) ->
+awaitRegistryStream = (stream, onProgress, ignoreErrorEvents) ->
 	contentHash = null
 	new Promise (resolve, reject) ->
 
@@ -28,13 +28,16 @@ awaitRegistryStream = (stream, onProgress) ->
 
 		jsonStream.on 'data', (evt) ->
 			if typeof evt isnt 'object'
-				evt = {}
-			else
+				return
+			try
+				if evt.error and !ignoreErrorEvents
+					throw new Error(evt.error)
+
 				# try to extract the digest before forwarding the
 				# object
 				maybeContent = tryExtractDigestHash(evt)
 				contentHash = maybeContent if maybeContent?
-			try
+
 				onProgress(evt)
 			catch error
 				stream.destroy(error)
@@ -295,20 +298,22 @@ exports.DockerProgress = class DockerProgress
 			callback = options
 			options = null
 
+		ignoreErrorEvents = !!options?.ignoreProgressErrorEvents
 		onProgressPromise = @pullProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.pull(image, options)
 		.then (stream) ->
-			awaitRegistryStream(stream, onProgress)
+			awaitRegistryStream(stream, onProgress, ignoreErrorEvents)
 		.nodeify(callback)
 
 	# Push docker image calling onProgress with extended progress info regularly
 	push: (image, onProgress, options, callback) ->
+		ignoreErrorEvents = !!options?.ignoreProgressErrorEvents
 		onProgressPromise = @pushProgress(image, onProgress)
 		onProgress = onProgressHandler(onProgressPromise, onProgress)
 		@docker.getImage(image).push(options)
 		.then (stream) ->
-			awaitRegistryStream(stream, onProgress)
+			awaitRegistryStream(stream, onProgress, ignoreErrorEvents)
 		.nodeify(callback)
 
 	# Create a stream that transforms docker daemon's onProgress
