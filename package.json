@@ -1,6 +1,6 @@
 {
   "name": "docker-progress",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "This module provides additional progress mechanics on top of dockerode",
   "main": "index.js",
   "repository": {
