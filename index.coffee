@@ -141,11 +141,11 @@ class ProgressReporter
 					downloadProgressTracker.addLayer(id)
 					extractionProgressTracker.addLayer(id)
 				else if status is 'Ready to download'
-					# resin-os/docker extracts layers as they're downloaded and omits
+					# balena-os/balena-engine extracts layers as they're downloaded and omits
 					# download stage events completely, only emitting extraction events.
 					# We determine this is the case from the 'Ready to download' event
-					# emitted once for each layer by resin-os/docker at the start of the
-					# pull. We then create a "link" of the progress record for the layer
+					# emitted once for each layer by balena-os/balena-engine at the start of
+					# the pull. We then create a "link" of the progress record for the layer
 					# between the download and extraction progress trackers by sharing
 					# the record "pointer", so that later events affect progress in both
 					# trackers. This simplifies handling this case a lot, because it
