@@ -1,4 +1,14 @@
 - commits:
+    - subject: Update to balena-lint 5.x
+      hash: 9563bf5150c39c6d6f298a9ed24f7969650273f7
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 4.0.3
+  date: 2020-08-17T12:03:45.249Z
+- commits:
     - subject: Add .versionbot/CHANGELOG.yml for nested changelogs
       hash: 2cec0f2ef1eb24797b650024873c91c942e74017
       body: ''
