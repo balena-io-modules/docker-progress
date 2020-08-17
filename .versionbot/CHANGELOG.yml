@@ -1,0 +1,375 @@
+- commits:
+  - author: Pagan Gazzard
+    body: ""
+    footers:
+      change-type: patch
+    hash: 9bb049ea3be13fb1362e39b057f78b19d8e3153d
+    subject: Update dependencies
+  date: "2020-03-04T14:17:04Z"
+  version: 4.0.1
+- commits:
+  - author: Paulo Castro
+    body: |-
+      The change type is considered 'major' because, by default, errors are
+      now thrown for relatively common occurrences such as authentication
+      failures when pulling from private registries, and library users may
+      have to adapt.
+    footers:
+      change-type: major
+      signed-off-by: Paulo Castro <paulo@balena.io>
+    hash: 3eef3685262e6bae8de064b9c50129e5597f4318
+    subject: Detect error events in push/pull progress streams
+  date: "2019-03-26T16:03:31Z"
+  version: 4.0.0
+- commits:
+  - author: Paulo Castro
+    body: ""
+    footers:
+      change-type: patch
+      resolves: '#47'
+      signed-off-by: Paulo Castro <paulo@balena.io>
+    hash: cadd1a72a0c846f3117ef1d4d8589a32d0a94fd0
+    subject: 'Fix "Progress error: Cannot read property ''startsWith'' of undefined"'
+  date: "2019-03-18T12:34:22Z"
+  version: 3.0.5
+- commits:
+  - author: Paulo Castro
+    body: ""
+    footers:
+      change-type: patch
+      signed-off-by: Paulo Castro <paulo@balena.io>
+    hash: 7ce377ebb9ee8f7b54a0724ccab39c2a8208b8aa
+    subject: Catch 'unknown blob' errors in progress streams
+  date: "2019-03-05T10:24:38Z"
+  version: 3.0.4
+- commits:
+  - author: Cameron Diver
+    body: ""
+    footers:
+      change-type: patch
+      signed-off-by: Cameron Diver <cameron@balena.io>
+    hash: 17d44d1fabbdecf77a9b939bea7b1a1dd1e90af7
+    subject: Replace followProgress to avoid caching push/pull state
+  date: "2018-12-04T10:52:51Z"
+  version: 3.0.3
+- commits:
+  - author: Akis Kesoglou
+    body: ""
+    footers:
+      change-type: patch
+      signed-off-by: Akis Kesoglou <akis@resin.io>
+    hash: af89d51a2fa0c2eeb0987c7a740ac788832abbd4
+    subject: Ensure latest versions of balena-engine can be identified
+  date: "2018-10-15T10:51:26Z"
+  version: 3.0.2
+- commits:
+  - author: Cameron Diver
+    body: ""
+    footers:
+      change-type: patch
+      connects-to: '#41'
+      signed-off-by: Cameron Diver <cameron@resin.io>
+    hash: 4bb4a670882220c0fafaff8ee0070ed9db056d2c
+    subject: Expose docker property of docker-progress
+  date: "2017-12-05T17:56:44Z"
+  version: 3.0.1
+- commits:
+  - author: Andreas Fitzek
+    body: ""
+    footers:
+      change-type: major
+      connects-to: '#39'
+      signed-off-by: Andreas Fitzek <andreas@resin.io>
+    hash: ada6ebc82e4725d0418a697ee1dd4beeb715ced2
+    subject: Pull and Push promises resolve to the registry digest of the image
+  - author: Andreas Fitzek
+    body: ""
+    hash: 2e44d16d8f0e7a906cec2dbc0b0fc41d70c44282
+    subject: addressed review
+  date: "2017-12-05T12:51:26Z"
+  version: 3.0.0
+- commits:
+  - author: Cameron Diver
+    body: ""
+    footers:
+      change-type: patch
+      connects-to: '#37'
+      signed-off-by: Cameron Diver <cameron@resin.io>
+    hash: 6f24f30288dbc404cec76089533be6e1500e1951
+    subject: Specify the promises as bluebird promises in typings
+  date: "2017-11-01T13:11:01Z"
+  version: 2.8.1
+- commits:
+  - author: Cameron Diver
+    body: ""
+    footers:
+      change-type: minor
+      connects-to: '#36'
+      signed-off-by: Cameron Diver <cameron@resin.io>
+    hash: 8b0c3be5f82c58ee08ee94ce5b063b29fa3d4977
+    subject: Add typings for index.coffee
+  date: "2017-10-31T16:14:11Z"
+  version: 2.8.0
+- commits:
+  - author: Akis Kesoglou
+    body: Balena is the new name for resin-os/docker, so identify it in a backwards
+      compatible way.
+    footers:
+      change-type: patch
+    hash: f902f8aa6f0ba054221b5704fbe485142e9627f7
+    subject: Identify Balena
+  date: "2017-10-16T14:18:16Z"
+  version: 2.7.2
+- commits:
+  - author: Akis Kesoglou
+    body: Balaena provides all required progress info its stream of events. Try to
+      identify whether we’re working with Balaena and use a tailor-made (and very
+      much simplified, and heaps more accurate) progress reporter in that case.
+    footers:
+      change-type: patch
+    hash: f729409548107c2eb50e2768f24dd99bbf528257
+    subject: Use custom reporter for Balanea
+  date: "2017-10-04T15:43:59Z"
+  version: 2.7.1
+- commits:
+  - author: Akis Kesoglou
+    body: |-
+      resin-os/docker extracts the layer as it’s downloaded resulting in progress reporting stopping at 50% (since there’s no “Downloading” phase anymore).
+      We determine that’s the case on-the-fly, by looking for the “Ready to download” event status, in which case we create a “link” from the download progress tracker to the extraction tracker for that layer by sharing the object reference. This let’s us transparently handle the coalescing of the two stages and still report an accurate percentage.
+    footers:
+      change-type: minor
+      connects-to: '#32'
+      refs: https://github.com/resin-os/balaena/blob/f55283222c05345540a0654cea2ef15031909806/distribution/pull_v2.go#L230
+    hash: bc0ff109d119e040673d49980df48f2ea857b2f3
+    subject: Handle combined download and extraction stages
+  - author: Akis Kesoglou
+    body: ""
+    hash: f8af92f99b32cc0e16a5ae971f3ee464bacab1d9
+    subject: Address review feedback
+  date: "2017-10-03T09:20:27Z"
+  version: 2.7.0
+- commits:
+  - author: Alexis Svinartchouk
+    body: 'Connects-To: #30'
+    footers:
+      change-type: patch
+    hash: e3738d514c6c520db273109043eaaff6b18cde59
+    subject: Search fo any tag instead of just 'latest' in pushProgress.
+  date: "2017-09-06T08:08:00Z"
+  version: 2.6.4
+- commits:
+  - author: Pablo Carranza Velez
+    body: 'Closes #28'
+    footers:
+      change-type: patch
+      signed-off-by: Pablo Carranza Velez <pablo@resin.io>
+    hash: 21a8ee9872d81e6cf92a040529bdc0ddf422f423
+    subject: Add empty .npmignore to avoid js files being ignored
+  date: "2017-08-28T16:38:18Z"
+  version: 2.6.3
+- commits:
+  - author: Pablo Carranza Velez
+    body: |-
+      Up to now the check used a call to version() which causes an unnecessary call to the docker API. This causes
+      problems with tests in resin-supervisor that need to create a DockerProgress instance but not actually use it,
+      and are run in an environment without a running docker daemon.
+    footers:
+      change-type: patch
+      signed-off-by: Pablo Carranza Velez <pablo@resin.io>
+    hash: da6258bd41862b4ff3a42d045dd7e6b93d655b62
+    subject: Avoid calling the docker API to check if the dockerToolbelt option is
+      valid
+  date: "2017-08-16T23:33:53Z"
+  version: 2.6.2
+- commits:
+  - author: Pablo Carranza Velez
+    body: |-
+      They are generated on prepublish so there's no need to keep them in the repo, and now
+      that versionist handles the versioning they will not be updated automatically, so better
+      just remove them.
+    footers:
+      change-type: patch
+      signed-off-by: Pablo Carranza Velez <pablo@resin.io>
+    hash: 041b8ae7915b56d23970d7950ca257789d0fbd17
+    subject: Remove the .js files from the git repository
+  date: "2017-07-17T21:47:22Z"
+  version: 2.6.1
+- commits:
+  - author: Pablo Carranza Velez
+    body: |-
+      This allows us to inject and reuse a Docker instance instead of creating a new one.
+      The docker-toolbelt update now removes the Async-suffixed methods for docker and its
+      containers and images (promises are supported natively).
+    footers:
+      change-type: minor
+      signed-off-by: Pablo Carranza Velez <pablo@resin.io>
+    hash: b6ea515c2c8942ba66048d0142367c09806cbb62
+    subject: Allow passing a dockerToolbelt object in the options, and update docker-toolbelt
+      to 3.0.1
+  date: "2017-07-14T21:32:21Z"
+  version: 2.6.0
+- commits:
+  - author: Pablo Carranza Velez
+    body: ""
+    footers:
+      change-type: patch
+      signed-off-by: Pablo Carranza Velez <pablo@resin.io>
+    hash: 61a18899ff16a0e42b01deb7591687ae05602e44
+    subject: Adapt the changelog to the versionist format
+  date: "2017-07-14T19:52:24Z"
+  version: 2.5.1
+- commits:
+  - author: Andreas Fitzek
+    body: ""
+    footers:
+      change-type: minor
+    hash: 394e8bcc4423bb81da3fb9563045c7f7597064b1
+    subject: Forward options object to docker pull
+  - author: Andreas Fitzek
+    body: ""
+    hash: b261453ce4255279ee82cb65230b2115281aa08e
+    subject: move options to third argument to match push API
+  date: "2017-03-24T10:49:40Z"
+  version: 2.5.0
+- commits:
+  - author: Akis Kesoglou
+    body: ""
+    hash: 3b87c59706fe120aa28c788f399ac0eac9bd29bf
+    subject: Fixed parsing Docker version when trying to decide which progress reporter
+      to instantiate
+  date: "2017-03-10T20:32:51Z"
+  version: 2.4.4
+- commits:
+  - author: Akis Kesoglou
+    body: ""
+    hash: b2ac1b0cd0d8ee5b8a7db24a7b10301d6adf8100
+    subject: Fixed getting registry version
+  date: "2017-02-15T10:01:50Z"
+  version: 2.4.3
+- commits:
+  - author: Akis Kesoglou
+    body: ""
+    hash: dcdd33ead43b5c43fe30ef1421ecfc9aae1c77b1
+    subject: Restore public-facing APIs that were incorrectly removed in v2.4.0
+  date: "2017-02-08T10:41:23Z"
+  version: 2.4.2
+- commits:
+  - author: Akis Kesoglou
+    body: ""
+    hash: e322085a8753a0ae8ce0a17550838cc327b2b337
+    subject: Minor refactoring/reordering of methods
+  - author: Akis Kesoglou
+    body: Only applies when pulling from Registry V2
+    hash: 871d5704d7d0a1be34cacfdba9e87f129e34c63c
+    subject: Calculate extraction progress
+  - author: Akis Kesoglou
+    body: ""
+    hash: 08107f048228977d209b9472f48fb235b2ac5924
+    subject: Extracted progress reporting code to a separate class
+  - author: Akis Kesoglou
+    body: ""
+    hash: 640f4b6ca5f45b6931e71fb9f24f5aa48399659b
+    subject: Extracted reporting code to external file
+  - author: Akis Kesoglou
+    body: |-
+      This completely removes the initial delay when pulling/pushing but makes progress reporting less accurate due to the way it now calculates progress.
+      This also deprecates compatibility with Docker<1.10.
+    hash: 489100aba91ffa3eb99cd07c9396ac015956b4a9
+    subject: Removed calls to Registry and/or Docker daemon for Docker>=1.10
+  - author: Akis Kesoglou
+    body: ""
+    hash: 8609bac71f4e60b5cdd52d9faf1356257b3a6137
+    subject: Improve legacy push progress calculation when image already exists
+  - author: Akis Kesoglou
+    body: ""
+    hash: 7036ae4f17f9a55427785138766c512adfd7d187
+    subject: Added ability to accurately report aggregate progress
+  - author: Akis Kesoglou
+    body: ""
+    hash: 660edc50c5e48e3f80b6147f9f467339917dbc36
+    subject: Addressed review feedback
+  - author: Akis Kesoglou
+    body: ""
+    hash: f08c397e53d2fd659e55d0df251adc8716cf2cc9
+    subject: More readable and consistent layer size calculation
+  - author: Akis Kesoglou
+    body: ""
+    hash: 2624b13f5d8d0953fd943d1e7f0ca08497363c9c
+    subject: Changelog
+  date: "2017-02-01T11:25:45Z"
+  version: 2.4.0
+- commits:
+  - author: Pagan Gazzard
+    body: ""
+    hash: 23a4b74e9ae78308434a3f3668a766dfd23e3a8a
+    subject: Fix downloading the entire layer to get the size
+  - author: Pablo Carranza Velez
+    body: ""
+    hash: c324d66460ecd7aa8115440b1b298a52ec02f625
+    subject: Updated to docker-toolbelt 1.3.1
+  - author: Pablo Carranza Velez
+    body: ""
+    hash: 5309f40538cf3b17ed59df87aeb269afe74ac2aa
+    subject: Fix use of `_.sum` for lodash 4
+  - author: Pablo Carranza Velez
+    body: ""
+    hash: 39463a0f1e8af34593e678a5271b744a41e12e32
+    subject: Do not export getRegistryAndName and use docker-toolbelt instead
+  date: "2016-12-24T01:45:14Z"
+  version: 2.3.3
+- commits:
+  - author: Pagan Gazzard
+    body: ""
+    hash: 2a6ea517ab6196ca4a3c6672f8e7bf09639f8911
+    subject: Update to coffee-script 1.11
+  - author: Pagan Gazzard
+    body: ""
+    hash: 62735c9c1d0bc8f89e8d932a624d67d577dcb25b
+    subject: Update to bluebird 3
+  - author: Pagan Gazzard
+    body: ""
+    hash: 2a99001b202f68b72322c49374997a048fd4402b
+    subject: Update to lodash v4
+  date: "2016-10-06T18:17:48Z"
+  version: 2.3.0
+- commits:
+  - author: Alexios Theodoros Brezas
+    body: ""
+    hash: 239e2f70db36c28a6d82b75ae722828cbd2cf15e
+    subject: support pulling from v2 registry
+  - author: Alexios Theodoros Brezas
+    body: ""
+    hash: 1c739afc9b53035c7ff2e29cc7abd2765145aa41
+    subject: match layers by order if none of ids match
+  - author: Alexios Theodoros Brezas
+    body: Keep track of pushed size per layer and report one total percentage, similar
+      to how pull progress works.
+    hash: e699fbfa2a92d5ba39a490b7ea2e8bb37c431809
+    subject: Improved push progress for concurrent push.
+  - author: Alexios Theodoros Brezas
+    body: ""
+    hash: 67c1169bad33faabc654e4992f6d837ab552d027
+    subject: fix linting errors
+  - author: Pagan Gazzard
+    body: ""
+    hash: 2ca97a97ed006821e727e4b7d0c35f79035a4706
+    subject: Add linting
+  date: "2016-10-03T02:10:11Z"
+  version: 2.2.0
+- commits:
+  - author: Alexios Theodoros Brezas
+    body: |-
+      Newer versions of docker download multiple layers concurrently. As
+      events are processed by docker-progress, the current downloaded size
+      changes based on what layer is being downloaded now.
+      So, instead of having one variable for keeping track of currently
+      downloaded size, we have one entry per layer, and add them up
+      to get the aggregate downloaded size.
+    hash: 13a8c0ada9ba7411310b68690c2818e758aafc7a
+    subject: Correct percentage on parallel pull
+  - author: Alexios Theodoros Brezas
+    body: ""
+    hash: 5d9b435e4536d1b137c236ed6d1ef4fcd41ae010
+    subject: Improve error handling and use function for long id checking
+  date: "2016-05-26T14:08:01Z"
+  version: 2.1.0
