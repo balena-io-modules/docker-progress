@@ -1,4 +1,35 @@
 - commits:
+    - subject: 'Convert to TypeScript. BREAKING: constructor and push/pull interfaces'
+      hash: 1b79633f9e0749d84e60ef765ba017aa3159c16a
+      body: ''
+      footer:
+        Change-type: major
+        change-type: major
+      author: Paulo Castro
+    - subject: Delete legacy.coffee and auto-convert CoffeeScript to JavaScript
+      hash: 93a2ed107abfbd66ec60a8f24df36e457ec7495d
+      body: ''
+      footer:
+        Change-type: major
+        change-type: major
+      author: Paulo Castro
+    - subject: Add 'package-lock=false' to '.npmrc' (libs shouldn't lock dependencies)
+      hash: ca98f6504725c3f9bf5abaff1827691051e899bf
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Paulo Castro
+    - subject: Update license to Apache 2.0
+      hash: a6fbb08f804e924cfae94e8b2c007c69d0ba8d07
+      body: ''
+      footer:
+        Change-type: major
+        change-type: major
+      author: Paulo Castro
+  version: 5.0.0
+  date: 2021-05-05T17:03:51.097Z
+- commits:
     - subject: Update to balena-lint 5.x
       hash: 9563bf5150c39c6d6f298a9ed24f7969650273f7
       body: ''
