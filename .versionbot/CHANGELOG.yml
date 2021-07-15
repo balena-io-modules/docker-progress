@@ -1,4 +1,17 @@
 - commits:
+    - subject: Add support for building images with progress
+      hash: ca689eafc75c3dfe462ee24f9083f42baec7553f
+      body: |
+        Using build instead of pull allows to add label to pulled images in an
+        atomic way. This commit adds the `DockerProgres.build()` method to
+        build an image from a remote (or local) source.
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Felipe Lalanne
+  version: 5.1.0
+  date: 2021-07-15T23:42:10.288Z
+- commits:
     - subject: 'Convert to TypeScript. BREAKING: constructor and push/pull interfaces'
       hash: 1b79633f9e0749d84e60ef765ba017aa3159c16a
       body: ''
