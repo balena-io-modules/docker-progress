@@ -16,8 +16,13 @@
  */
 
 import * as _ from 'lodash';
+import * as tar from 'tar-stream';
 
-import type { DockerVersion, ImagePushOptions } from 'dockerode';
+import type {
+	DockerVersion,
+	ImagePushOptions,
+	ImageBuildOptions,
+} from 'dockerode';
 
 export interface EngineVersion extends DockerVersion {
 	Engine?: string;
@@ -33,6 +38,12 @@ export interface PullPushOptions {
 		registrytoken?: string;
 	};
 	ignoreProgressErrorEvents?: boolean;
+}
+
+export interface BuildOptions extends PullPushOptions {
+	t?: string; // Built image tag
+	labels?: { [name: string]: string };
+	keepParentImage?: boolean;
 }
 
 export type ProgressCallback = (eventObj: any) => void;
@@ -451,6 +462,47 @@ export class DockerProgress {
 			onProgress,
 			ignoreErrorEvents,
 		);
+		return hash;
+	}
+
+	/** Build docker image calling onProgress with extended progress info regularly */
+	async build(
+		image: string,
+		onProgress: ProgressCallback,
+		options?: BuildOptions,
+	): Promise<string> {
+		// Create tar for build
+		const tarStream = tar.pack();
+		tarStream.entry({ name: 'Dockerfile' }, `FROM ${image}`, (err) => {
+			if (err) {
+				throw err;
+			}
+			tarStream.finalize();
+		});
+
+		const ignoreErrorEvents = !!options?.ignoreProgressErrorEvents;
+		const reporter = await this.getProgressReporter();
+		onProgress = reporter.pullProgress(onProgress);
+		const stream = await this.docker.buildImage(
+			tarStream,
+			options as ImageBuildOptions,
+		);
+		const hash = await awaitRegistryStream(
+			stream,
+			onProgress,
+			ignoreErrorEvents,
+		);
+
+		const keepParentImage = !!options?.keepParentImage;
+		if (!keepParentImage) {
+			// TODO: This makes the operation non-atomic. Need to figure out if
+			// there is a way to let the engine delete the original tag
+			await this.docker
+				.getImage(image)
+				.remove()
+				.catch(() => void 0);
+		}
+
 		return hash;
 	}
 
