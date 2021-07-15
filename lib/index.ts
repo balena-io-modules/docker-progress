@@ -16,23 +16,42 @@
  */
 
 import * as _ from 'lodash';
+import type * as Stream from 'stream';
 
-import type { DockerVersion, ImagePushOptions } from 'dockerode';
+import type {
+	DockerVersion,
+	ImagePushOptions,
+	ImageBuildOptions,
+	AuthConfig,
+	RegistryConfig,
+} from 'dockerode';
 
 export interface EngineVersion extends DockerVersion {
 	Engine?: string;
 }
 
 export interface PullPushOptions {
-	authconfig?: {
-		username?: string;
-		password?: string;
+	ignoreProgressErrorEvents?: boolean;
+	authconfig?: AuthConfig & {
 		auth?: string;
-		email?: string;
-		serveraddress?: string;
 		registrytoken?: string;
 	};
+}
+
+export interface BuildOptions extends ImageBuildOptions {
 	ignoreProgressErrorEvents?: boolean;
+	authconfig?: AuthConfig & {
+		auth?: string;
+		registrytoken?: string;
+	};
+	registryconfig?: RegistryConfig & {
+		[registryAddress: string]: {
+			username?: string;
+			password?: string;
+			auth?: string;
+			registrytoken?: string;
+		};
+	};
 }
 
 export type ProgressCallback = (eventObj: any) => void;
@@ -242,6 +261,88 @@ class ProgressReporter {
 				);
 			} catch (err) {
 				this.checkProgressError(err as Error, `pull id=${id} status=${status}`);
+			}
+		};
+	}
+
+	buildProgress(onProgress: ProgressCallback): ProgressCallback {
+		const progressRenderer = this.renderProgress;
+		let lastStep = 1;
+		let step = 0;
+		let total = 1;
+		let lastPercentage = 0;
+
+		let progressCallback: ProgressCallback = () => void 0;
+
+		return (evt: any) => {
+			let stream;
+			let id;
+			let status;
+			try {
+				({ id, stream, status } = evt);
+				id ||= '';
+				status ||= '';
+				stream ||= '';
+
+				// Check for a `Step n/total` message on the stream
+				const streamComponents = stream.match(/^Step (\d+)\/(\d+)\s*:\s*(.+)/);
+				if (streamComponents != null) {
+					let instruction = '';
+					[, step, total, instruction] = streamComponents;
+					step ||= 1;
+					total ||= 1;
+					instruction ||= '';
+
+					// Normalize the lastPercentage by the number of steps
+					lastPercentage = Math.floor((100 * (step - 1)) / total);
+
+					// The `Step n/total` is only shown at the beginning
+					// of the step. We re-create the pullProgress using the
+					// new total step value
+					if (step >= lastStep) {
+						if (instruction.toLowerCase().startsWith('from')) {
+							// If this is a FROM instruction, delegate progress to a new pullProgress
+							// callback
+							progressCallback = this.pullProgress(({ percentage, ...e }) => {
+								// Scale the progress from the pull step by the number of steps
+								percentage = Math.floor((step * percentage) / total);
+								percentage = lastPercentage = Math.max(
+									lastPercentage,
+									percentage,
+								);
+								onProgress({
+									...e,
+									percentage,
+									// Re-render the progress with the new value
+									totalProgress: progressRenderer(percentage),
+								});
+							});
+						} else {
+							// Otherwise percentage will only increase with each step so we just
+							// use that as percentage
+							progressCallback = (e: any) =>
+								onProgress({
+									...e,
+									percentage: lastPercentage,
+									totalProgress: progressRenderer(lastPercentage),
+								});
+						}
+					}
+					lastStep = step;
+				}
+
+				// Update the last percentage if the last step is finished
+				if (stream.startsWith('Successfully built')) {
+					lastPercentage = 100;
+				}
+
+				// Pass the event to the progress callback for rendering
+				progressCallback(evt);
+			} catch (err) {
+				this.checkProgressError(
+					err as Error,
+					`build stream=${stream} id=${id} status=${status}`,
+				);
 			}
 		};
 	}
@@ -460,6 +561,41 @@ export class DockerProgress {
 			onProgress,
 			ignoreErrorEvents,
 		);
+		return hash;
+	}
+
+	/** Build docker image calling onProgress with extended progress info regularly */
+	async build(
+		tarStream: Stream.Readable,
+		onProgress: ProgressCallback,
+		options?: BuildOptions,
+	): Promise<string> {
+		const ignoreErrorEvents = !!options?.ignoreProgressErrorEvents;
+
+		// Authconfig is not supported by docker `/build` endpoint but we support
+		// it here to provide a common interface with the `pull()` method
+		if (options?.authconfig) {
+			const { serveraddress, ...authconfig } = options.authconfig;
+			options.registryconfig = {
+				[serveraddress]: authconfig,
+
+				// Override with registryconfig if it the same serveraddress
+				// is used in both options
+				...options.registryconfig,
+			};
+
+			delete options.authconfig;
+		}
+
+		const reporter = await this.getProgressReporter();
+		onProgress = reporter.buildProgress(onProgress);
+		const stream = await this.docker.buildImage(tarStream, options);
+		const hash = await awaitRegistryStream(
+			stream,
+			onProgress,
+			ignoreErrorEvents,
+		);
+
 		return hash;
 	}
 
