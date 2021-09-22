@@ -82,7 +82,7 @@ function awaitRegistryStream(
 				onProgress(evt);
 			} catch (error) {
 				try {
-					(stream as NodeJS.ReadStream).destroy(error);
+					(stream as NodeJS.ReadStream).destroy(error as Error);
 					reject(error);
 				} catch (err) {
 					stream.emit('error', error);
@@ -241,7 +241,7 @@ class ProgressReporter {
 					}),
 				);
 			} catch (err) {
-				this.checkProgressError(err, `pull id=${id} status=${status}`);
+				this.checkProgressError(err as Error, `pull id=${id} status=${status}`);
 			}
 		};
 	}
@@ -309,7 +309,7 @@ class ProgressReporter {
 					}),
 				);
 			} catch (err) {
-				this.checkProgressError(err, `push id=${id} status=${status}`);
+				this.checkProgressError(err as Error, `push id=${id} status=${status}`);
 			}
 		};
 	}
@@ -335,7 +335,16 @@ class BalenaProgressReporter extends ProgressReporter {
 					return;
 				}
 
-				const { current, total } = evt.progressDetail;
+				let { current, total } = evt.progressDetail;
+
+				// sanity check.
+				if (isNaN(current)) {
+					current = 0;
+				}
+				if (isNaN(total)) {
+					total = current + 1;
+				}
+
 				let percentage = Math.floor((current * 100) / total);
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
@@ -348,7 +357,7 @@ class BalenaProgressReporter extends ProgressReporter {
 					}),
 				);
 			} catch (err) {
-				this.checkProgressError(err, `balena pull id=${id}`);
+				this.checkProgressError(err as Error, `balena pull id=${id}`);
 			}
 		};
 	}
