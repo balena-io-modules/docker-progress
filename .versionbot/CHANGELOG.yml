@@ -1,4 +1,16 @@
 - commits:
+    - subject: Fix for bad progress values from some registries causing a crash
+      hash: fa3f44c11a2067e65eea4ab43a382f7bbb5b75ef
+      body: ''
+      footer:
+        Signed-off-by: Paul Jonathan <pj@balena.io>
+        signed-off-by: Paul Jonathan <pj@balena.io>
+        Change-type: patch
+        change-type: patch
+      author: Paul Jonathan Zoulin
+  version: 5.0.1
+  date: 2021-09-22T18:45:19.157Z
+- commits:
     - subject: 'Convert to TypeScript. BREAKING: constructor and push/pull interfaces'
       hash: 1b79633f9e0749d84e60ef765ba017aa3159c16a
       body: ''
