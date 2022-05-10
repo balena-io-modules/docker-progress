@@ -1,4 +1,17 @@
 - commits:
+    - subject: Avoid breaking changes to PushPullOptions required properties
+      hash: dba7348ba87ca9d6299ebeab393fb8f6b5aa6ce5
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+  version: 5.1.1
+  title: "'Avoid breaking changes to PushPullOptions required properties'"
+  date: 2022-05-10T14:44:11.701Z
+- commits:
     - subject: Add support for building images with progress
       hash: e072408ee951d3caf46af5050d0b71991d114614
       body: >
