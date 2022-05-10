@@ -1,4 +1,15 @@
 - commits:
+    - subject: Update dependencies
+      hash: 0ef9c38ccdb048d849a216a3ad52a047a5194073
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.1.2
+  title: "'Update dependencies'"
+  date: 2022-05-10T16:11:14.032Z
+- commits:
     - subject: Avoid breaking changes to PushPullOptions required properties
       hash: dba7348ba87ca9d6299ebeab393fb8f6b5aa6ce5
       body: ""
