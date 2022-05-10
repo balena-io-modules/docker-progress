@@ -32,7 +32,7 @@ export interface EngineVersion extends DockerVersion {
 
 export interface PullPushOptions {
 	ignoreProgressErrorEvents?: boolean;
-	authconfig?: AuthConfig & {
+	authconfig?: Partial<AuthConfig> & {
 		auth?: string;
 		registrytoken?: string;
 	};
