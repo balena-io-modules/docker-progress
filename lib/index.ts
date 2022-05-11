@@ -84,6 +84,7 @@ function awaitRegistryStream(
 		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse();
 
 		jsonStream.on('error', reject);
+		jsonStream.on('close', reject);
 		jsonStream.on('end', () => resolve(contentHash));
 		jsonStream.on('data', (evt: any) => {
 			if (typeof evt !== 'object') {
