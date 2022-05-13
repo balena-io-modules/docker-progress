@@ -1,4 +1,15 @@
 - commits:
+    - subject: Reject on the stream closing if it has not already ended successfully
+      hash: e46ad706cdb32c20a9ef9358eed4567aef3d1b62
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.1.3
+  title: "'Reject on the stream closing if it has not already ended successfully'"
+  date: 2022-05-11T16:47:41.323Z
+- commits:
     - subject: Update dependencies
       hash: 0ef9c38ccdb048d849a216a3ad52a047a5194073
       body: ""
