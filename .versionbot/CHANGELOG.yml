@@ -1,4 +1,15 @@
 - commits:
+    - subject: Add support for tracking delta generation progress
+      hash: 8d090f515e3d3c14b0be32db3d926324daedc936
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Akis Kesoglou
+  version: 5.2.0
+  title: ""
+  date: 2023-06-30T18:07:36.352Z
+- commits:
     - subject: Build with Flowzone
       hash: b533a310839d4031d0e0a6d9197439c5ba92bb38
       body: ""
