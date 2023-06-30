@@ -12,6 +12,9 @@
   "files": [
     "build/"
   ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "clean": "rimraf build",
     "build": "npm run clean && npm run lint && tsc",
