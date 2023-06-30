@@ -348,6 +348,152 @@ class ProgressReporter {
 		};
 	}
 
+	deltaProgress(onProgress: ProgressCallback): ProgressCallback {
+		const progressRenderer = this.renderProgress;
+
+		const state: {
+			fingerprintingProgress: number;
+			layerProgress: { [id: string]: number };
+		} = {
+			fingerprintingProgress: 0,
+			layerProgress: {},
+		};
+
+		function calcProgress(
+			current: number,
+			p: { current: number; total: number },
+		): number {
+			if (p == null || p.current == null || p.total == null || p.total <= 0) {
+				return current;
+			}
+			return Math.max(current, Math.min(p.current / p.total, 1.0));
+		}
+
+		const layerEvents = [
+			'Waiting',
+			'Computing delta',
+			'Delta complete',
+			'Skipping common layer',
+		];
+
+		return (e: any) => {
+			let id;
+			let status;
+
+			try {
+				// Some basic sanity-check.
+				// Errors are handled elsewhere for us.
+				if (e == null || e.status == null || e.error != null) {
+					return;
+				}
+
+				({ id, status } = e);
+				id ||= '';
+				status ||= '';
+
+				// Delta generation goes through the following stages:
+				//
+				// - Fingerprinting: the engine goes over the whole source image once and
+				//   generates events with `status: "Fingerprinting"` and `id` equal to the full
+				//   image name, exactly as given. Progress is reported in `progressDetail` which
+				//   is an object of type `{ current: number, total: number }`. This stage ends
+				//   with an event with `status: "Fingerprint complete"`.
+				//
+				// - Waiting: for each image layer, the engine emits a single event with
+				//   `status: "Waiting"` and `id` the ID of the layer, and proceeds on to the
+				//   next stage.
+				//
+				// - Generation: the engine goes over each layer, in the same order it emitted
+				//   "Waiting" events for in the previous stage, and computes the diff with the
+				//   corresponding layer on the destination image, emitting events with
+				//   `status: "Computing delta"`, the layer ID contained in `id`, and progress
+				//   contained in `progressDetail`. It is possible for `progressDetail.current`
+				//   to *overshoot* `progressDetail.total`. When done, it emits an event with
+				//   `status: "Delta complete"` and proceeds with the next layer. If the source
+				//   and destination layers are identical, the engine emits a single event with
+				//   `status: "Skipping common layer"` and moves on to the next layer. When all
+				//   layers are complete (or skipped), the engine moves on to the next stage.
+				//
+				// - Complete: the engine emits an event with `status` containing the normal size
+				//   of the image, the size of the delta and the improvement factor. It finally
+				//   emits an event with `status` containing the generated delta image ID,
+				//   `status: "Created delta: sha256:<64-byte content hash>"`.
+
+				// Ensure we always emit a final 100%
+				if (e.status.startsWith('Created delta: ')) {
+					return onProgress({ percentage: 100 });
+				}
+
+				// Defensively check whether this is a layer-related event but `id` is
+				// somehow not provided. This shouldn't happen in practice.
+				if (e.id == null && layerEvents.includes(e.status)) {
+					return;
+				}
+
+				switch (e.status) {
+					case 'Fingerprinting':
+						state.fingerprintingProgress = calcProgress(
+							state.fingerprintingProgress,
+							e.progressDetail,
+						);
+						break;
+					case 'Fingerprint complete':
+						state.fingerprintingProgress = 1.0;
+						break;
+					case 'Waiting':
+						state.layerProgress[e.id] = 0.0;
+						break;
+					case 'Computing delta':
+						state.layerProgress[e.id] = calcProgress(
+							state.layerProgress[e.id] || 0.0,
+							e.progressDetail,
+						);
+						break;
+					case 'Skipping common layer':
+					case 'Delta complete':
+						state.layerProgress[e.id] = 1.0;
+						break;
+					default:
+						// An expected but uninteresting event.
+						// It could also be an unrecognized event but something must have
+						// gone horribly wrong if that's the case and it's going to be quite
+						// apparent because progress just won't update.
+						return;
+				}
+
+				// Calculate the overall progress.
+
+				const layerProgress = _.reduce(
+					state.layerProgress,
+					(prev, curr) => {
+						prev.percentage += curr;
+						prev.count += 1;
+						return prev;
+					},
+					{ percentage: 0, count: 0 },
+				);
+
+				// Allocate 25% of total progress to the "fingerprinting" stage
+				// and the rest to the actual computation of the delta.
+				let percentage = 25 * state.fingerprintingProgress;
+				if (layerProgress.count > 0) {
+					percentage += (75 * layerProgress.percentage) / layerProgress.count;
+				}
+				percentage = Math.round(percentage);
+
+				onProgress({
+					percentage,
+					totalProgress: progressRenderer(percentage),
+				});
+			} catch (err) {
+				this.checkProgressError(
+					err as Error,
+					`delta id=${id} status=${status}`,
+				);
+			}
+		};
+	}
+
 	/**
 	 * Return an image push progress event handler that wraps another, transforming
 	 * the image push progress events to add some fields:
@@ -598,6 +744,13 @@ export class DockerProgress {
 		);
 
 		return hash;
+	}
+
+	async makeDeltaProgressReporter(
+		onProgress: ProgressCallback,
+	): Promise<ProgressCallback> {
+		const reporter = await this.getProgressReporter();
+		return reporter.deltaProgress(onProgress);
 	}
 
 	async isBalenaEngine(): Promise<boolean> {
