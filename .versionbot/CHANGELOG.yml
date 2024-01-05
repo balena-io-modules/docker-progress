@@ -1,4 +1,15 @@
 - commits:
+    - subject: Update dependencies
+      hash: 8d8d919ca6593fde3b2b3bb6329fb69e2ec0019a
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.2.1
+  title: ""
+  date: 2024-01-05T14:45:55.146Z
+- commits:
     - subject: Add support for tracking delta generation progress
       hash: 8d090f515e3d3c14b0be32db3d926324daedc936
       body: ""
