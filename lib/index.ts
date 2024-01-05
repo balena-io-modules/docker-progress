@@ -73,15 +73,15 @@ function tryExtractDigestHash(evt: {
 	}
 }
 
-function awaitRegistryStream(
+async function awaitRegistryStream(
 	stream: NodeJS.ReadableStream,
 	onProgress: ProgressCallback,
 	ignoreErrorEvents: boolean,
 ): Promise<string> {
-	return new Promise((resolve, reject) => {
+	const JSONStream = await import('JSONStream');
+	return await new Promise((resolve, reject) => {
 		let contentHash = '';
-		const JSONStream = require('JSONStream');
-		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse();
+		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse(undefined);
 
 		jsonStream.on('error', reject);
 		jsonStream.on('close', reject);
