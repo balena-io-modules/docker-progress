@@ -122,7 +122,7 @@ function $renderProgress(percentage: number, stepCount: number): string {
 	percentage = _.clamp(percentage, 0, 100);
 	const barCount = Math.floor((stepCount * percentage) / 100);
 	const spaceCount = stepCount - barCount;
-	const bar = `[${_.repeat('=', barCount)}>${_.repeat(' ', spaceCount)}]`;
+	const bar = `[${'='.repeat(barCount)}>${' '.repeat(spaceCount)}]`;
 	return `${bar} ${percentage}%`;
 }
 
@@ -158,8 +158,8 @@ class ProgressTracker {
 	}
 
 	getProgress(): number {
-		const layers = _.filter(this.layers, { coalesced: false });
-		const avgProgress = _.meanBy(layers, 'progress') || 0;
+		const layers = _.filter(this.layers, (l) => l.coalesced === false);
+		const avgProgress = _.meanBy(layers, (l) => l.progress) || 0;
 		return Math.round(100 * avgProgress);
 	}
 
@@ -463,15 +463,11 @@ class ProgressReporter {
 
 				// Calculate the overall progress.
 
-				const layerProgress = _.reduce(
-					state.layerProgress,
-					(prev, curr) => {
-						prev.percentage += curr;
-						prev.count += 1;
-						return prev;
-					},
-					{ percentage: 0, count: 0 },
-				);
+				const layerProgress = { percentage: 0, count: 0 };
+				for (const progress of Object.values(state.layerProgress)) {
+					layerProgress.percentage += progress;
+					layerProgress.count += 1;
+				}
 
 				// Allocate 25% of total progress to the "fingerprinting" stage
 				// and the rest to the actual computation of the delta.
@@ -526,8 +522,7 @@ class ProgressReporter {
 					progressTracker.updateLayer(id, evt.progressDetail);
 					// registry v2 statuses
 				} else if (
-					_.includes(
-						['Pushed', 'Layer already exists', 'Image already exists'],
+					['Pushed', 'Layer already exists', 'Image already exists'].includes(
 						status,
 					) ||
 					/^Mounted from /.test(status)
@@ -536,7 +531,7 @@ class ProgressReporter {
 					// registry v1 statuses
 				} else if (
 					pushMatch != null ||
-					_.includes(['Already exists', 'Image successfully pushed'], status)
+					['Already exists', 'Image successfully pushed'].includes(status)
 				) {
 					progressTracker.finishLayer(id);
 				}
