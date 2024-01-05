@@ -1,4 +1,15 @@
 - commits:
+    - subject: Reduce lodash usage
+      hash: 9eb5d54942699c44480f1b261888e51c9c7e9c74
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.2.2
+  title: ""
+  date: 2024-01-05T14:55:03.667Z
+- commits:
     - subject: Update dependencies
       hash: 8d8d919ca6593fde3b2b3bb6329fb69e2ec0019a
       body: ""
