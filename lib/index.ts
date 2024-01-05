@@ -62,14 +62,12 @@ function tryExtractDigestHash(evt: {
 	aux?: { Digest?: string };
 	status?: any;
 }): string | undefined {
-	if (evt.aux && evt.aux.Digest) {
+	if (evt.aux?.Digest) {
 		return evt.aux.Digest;
 	}
 	if (typeof evt.status === 'string') {
 		const matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/);
-		if (matchPull != null) {
-			return matchPull[1];
-		}
+		return matchPull?.[1];
 	}
 }
 
@@ -165,9 +163,7 @@ class ProgressTracker {
 
 	patchProgressEvent(progress: { current: number; total: number }) {
 		// some events arrive without .total
-		if (progress.total == null) {
-			progress.total = progress.current;
-		}
+		progress.total ??= progress.current;
 		// some events arrive with .current > .total
 		progress.current = Math.min(progress.current, progress.total);
 	}
@@ -201,13 +197,7 @@ class ProgressReporter {
 			try {
 				let downloadedPercentage;
 				let extractedPercentage;
-				({ id, status } = evt);
-				if (id == null) {
-					id = '';
-				}
-				if (status == null) {
-					status = '';
-				}
+				({ id = '', status = '' } = evt);
 
 				if (status === 'Pulling fs layer') {
 					downloadProgressTracker.addLayer(id);
@@ -505,16 +495,11 @@ class ProgressReporter {
 			let id;
 			let status;
 			try {
-				({ id, status } = evt);
+				({ id, status = '' } = evt);
 
 				const pushMatch = /Image (.*) already pushed/.exec(status);
 
-				if (id == null) {
-					id = pushMatch != null ? pushMatch[1] : undefined;
-				}
-				if (status == null) {
-					status = '';
-				}
+				id ??= pushMatch?.[1];
 
 				if (status === 'Preparing') {
 					progressTracker.addLayer(id);
@@ -752,14 +737,12 @@ export class DockerProgress {
 		if (!this.engineVersion) {
 			// optimization for simultaneous async calls to pull()
 			// or push() with Promise.all(...)
-			if (!this.engineVersionPromise) {
-				this.engineVersionPromise = this.docker.version();
-			}
+			this.engineVersionPromise ??= this.docker.version();
 			this.engineVersion = await this.engineVersionPromise;
 			this.engineVersionPromise = undefined;
 		}
 		return ['balena', 'balaena', 'balena-engine'].includes(
-			this.engineVersion['Engine'] || '',
+			this.engineVersion['Engine'] ?? '',
 		);
 	}
 }
