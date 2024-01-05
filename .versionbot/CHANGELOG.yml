@@ -1,4 +1,15 @@
 - commits:
+    - subject: Make use of nullish coalescing
+      hash: f42513b5eab0ed2aac9e28bb76ed61a8126eb730
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.2.3
+  title: ""
+  date: 2024-01-05T17:02:09.867Z
+- commits:
     - subject: Reduce lodash usage
       hash: 9eb5d54942699c44480f1b261888e51c9c7e9c74
       body: ""
