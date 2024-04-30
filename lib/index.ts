@@ -98,6 +98,7 @@ async function awaitRegistryStream(
 					contentHash = maybeContent;
 				}
 				onProgress(evt);
+				console.log(JSON.stringify(evt));
 			} catch (error) {
 				try {
 					(stream as NodeJS.ReadStream).destroy(error as Error);
