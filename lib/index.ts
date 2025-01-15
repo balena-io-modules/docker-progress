@@ -84,13 +84,13 @@ async function awaitRegistryStream(
 		jsonStream.on('error', reject);
 		jsonStream.on('close', reject);
 		jsonStream.on('end', () => resolve(contentHash));
-		jsonStream.on('data', (evt: any) => {
+		jsonStream.on('data', (evt) => {
 			if (typeof evt !== 'object') {
 				return;
 			}
 			try {
 				if (evt.error && !ignoreErrorEvents) {
-					throw new Error(evt.error);
+					throw evt.error instanceof Error ? evt.error : new Error(evt.error);
 				}
 				// try to extract the digest before forwarding the object
 				const maybeContent = tryExtractDigestHash(evt);
@@ -704,7 +704,8 @@ export class DockerProgress {
 		if (options?.authconfig) {
 			const { serveraddress, ...authconfig } = options.authconfig;
 			options.registryconfig = {
-				[serveraddress]: authconfig,
+				...(serveraddress &&
+					({ [serveraddress]: authconfig } as RegistryConfig)),
 
 				// Override with registryconfig if it the same serveraddress
 				// is used in both options
