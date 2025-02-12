@@ -1,4 +1,22 @@
 - commits:
+    - subject: Propagate NodeJS Error from stream directly
+      hash: 32f0685f9120e9fdb78c469f23d710428a2faaf5
+      body: |
+        If the error throw from registry stream is
+        already a Node Error, wrapping it in an error
+        again may obfuscate additional properties
+        of the Node error. This commit passes the
+        error directly if it's already an Error instance.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Christina Ying Wang <christina@balena.io>
+        signed-off-by: Christina Ying Wang <christina@balena.io>
+      author: Christina Ying Wang
+  version: 5.2.4
+  title: ""
+  date: 2025-02-12T18:51:20.905Z
+- commits:
     - subject: Make use of nullish coalescing
       hash: f42513b5eab0ed2aac9e28bb76ed61a8126eb730
       body: ""
@@ -311,7 +329,11 @@
         progress reporting stopping at 50% (since there’s no “Downloading” phase
         anymore).
 
-        We determine that’s the case on-the-fly, by looking for the “Ready to download” event status, in which case we create a “link” from the download progress tracker to the extraction tracker for that layer by sharing the object reference. This let’s us transparently handle the coalescing of the two stages and still report an accurate percentage.
+        We determine that’s the case on-the-fly, by looking for the “Ready to
+        download” event status, in which case we create a “link” from the
+        download progress tracker to the extraction tracker for that layer by
+        sharing the object reference. This let’s us transparently handle the
+        coalescing of the two stages and still report an accurate percentage.
       footers:
         change-type: minor
         connects-to: "#32"
@@ -349,7 +371,8 @@
         Up to now the check used a call to version() which causes an unnecessary
         call to the docker API. This causes
 
-        problems with tests in resin-supervisor that need to create a DockerProgress instance but not actually use it,
+        problems with tests in resin-supervisor that need to create a
+        DockerProgress instance but not actually use it,
 
         and are run in an environment without a running docker daemon.
       footers:
@@ -366,7 +389,8 @@
         They are generated on prepublish so there's no need to keep them in the
         repo, and now
 
-        that versionist handles the versioning they will not be updated automatically, so better
+        that versionist handles the versioning they will not be updated
+        automatically, so better
 
         just remove them.
       footers:
@@ -382,7 +406,8 @@
         This allows us to inject and reuse a Docker instance instead of creating
         a new one.
 
-        The docker-toolbelt update now removes the Async-suffixed methods for docker and its
+        The docker-toolbelt update now removes the Async-suffixed methods for
+        docker and its
 
         containers and images (promises are supported natively).
       footers:
