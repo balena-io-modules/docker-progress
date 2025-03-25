@@ -33,7 +33,7 @@
     "@balena/lint": "^8.0.0",
     "@types/JSONStream": "npm:@types/jsonstream@^0.8.33",
     "@types/lodash": "^4.14.202",
-    "rimraf": "^5.0.5",
+    "rimraf": "^6.0.0",
     "typescript": "^5.3.3"
   },
   "versionist": {
