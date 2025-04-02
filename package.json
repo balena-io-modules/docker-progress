@@ -1,6 +1,6 @@
 {
   "name": "docker-progress",
-  "version": "5.2.5",
+  "version": "5.2.6",
   "description": "This module provides additional progress mechanics on top of dockerode",
   "repository": {
     "type": "git",
@@ -37,6 +37,6 @@
     "typescript": "^5.3.3"
   },
   "versionist": {
-    "publishedAt": "2025-03-25T17:20:55.111Z"
+    "publishedAt": "2025-04-02T14:09:16.927Z"
   }
 }
