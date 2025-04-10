@@ -1,4 +1,15 @@
 - commits:
+    - subject: Update @balena/lint to 9.x
+      hash: 1266dd748790690c8df6ebf45ac64c9ad0f26a85
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.2.7
+  title: ""
+  date: 2025-04-10T13:59:53.882Z
+- commits:
     - subject: Update dependency rimraf to v6
       hash: ec2f2a1170e1f0468822e0234870a14418a06c03
       body: |
