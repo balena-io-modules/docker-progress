@@ -19,7 +19,7 @@
     "clean": "rimraf build",
     "build": "npm run clean && npm run lint && tsc",
     "lint": "balena-lint lib",
-    "lint:fix": "balena-lint --fix lib",
+    "lint-fix": "balena-lint --fix lib",
     "test": "npm run lint && npm run build",
     "prepack": "npm run build"
   },
@@ -30,7 +30,7 @@
     "lodash": "^4.17.21"
   },
   "devDependencies": {
-    "@balena/lint": "^8.0.0",
+    "@balena/lint": "^9.2.2",
     "@types/JSONStream": "npm:@types/jsonstream@^0.8.33",
     "@types/lodash": "^4.14.202",
     "rimraf": "^6.0.0",

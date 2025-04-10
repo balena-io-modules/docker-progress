@@ -60,7 +60,7 @@ const DEFAULT_PROGRESS_BAR_STEP_COUNT = 50;
 
 function tryExtractDigestHash(evt: {
 	aux?: { Digest?: string };
-	status?: any;
+	status?: unknown;
 }): string | undefined {
 	if (evt.aux?.Digest) {
 		return evt.aux.Digest;
@@ -83,7 +83,9 @@ async function awaitRegistryStream(
 
 		jsonStream.on('error', reject);
 		jsonStream.on('close', reject);
-		jsonStream.on('end', () => resolve(contentHash));
+		jsonStream.on('end', () => {
+			resolve(contentHash);
+		});
 		jsonStream.on('data', (evt) => {
 			if (typeof evt !== 'object') {
 				return;
@@ -101,8 +103,8 @@ async function awaitRegistryStream(
 			} catch (error) {
 				try {
 					(stream as NodeJS.ReadStream).destroy(error as Error);
-					reject(error);
-				} catch (err) {
+					reject(error as Error);
+				} catch {
 					stream.emit('error', error);
 				}
 			}
@@ -191,7 +193,7 @@ class ProgressReporter {
 		const downloadProgressTracker = new ProgressTracker(100 * 1024); // 100 KB
 		const extractionProgressTracker = new ProgressTracker(1024 * 1024); // 1 MB
 		let lastPercentage = 0;
-		return (evt: any) => {
+		return (evt) => {
 			let id;
 			let status;
 			try {
@@ -265,15 +267,12 @@ class ProgressReporter {
 
 		let progressCallback: ProgressCallback = () => void 0;
 
-		return (evt: any) => {
+		return (evt) => {
 			let stream;
 			let id;
 			let status;
 			try {
-				({ id, stream, status } = evt);
-				id ||= '';
-				status ||= '';
-				stream ||= '';
+				({ id, stream = '', status } = evt);
 
 				// Check for a `Step n/total` message on the stream
 				const streamComponents = stream.match(/^Step (\d+)\/(\d+)\s*:\s*(.+)/);
@@ -311,12 +310,13 @@ class ProgressReporter {
 						} else {
 							// Otherwise percentage will only increase with each step so we just
 							// use that as percentage
-							progressCallback = (e: any) =>
+							progressCallback = (e) => {
 								onProgress({
 									...e,
 									percentage: lastPercentage,
 									totalProgress: progressRenderer(lastPercentage),
 								});
+							};
 						}
 					}
 					lastStep = step;
@@ -353,7 +353,7 @@ class ProgressReporter {
 			current: number,
 			p: { current: number; total: number },
 		): number {
-			if (p == null || p.current == null || p.total == null || p.total <= 0) {
+			if (p?.current == null || p.total == null || p.total <= 0) {
 				return current;
 			}
 			return Math.max(current, Math.min(p.current / p.total, 1.0));
@@ -366,20 +366,18 @@ class ProgressReporter {
 			'Skipping common layer',
 		];
 
-		return (e: any) => {
+		return (e) => {
 			let id;
 			let status;
 
 			try {
 				// Some basic sanity-check.
 				// Errors are handled elsewhere for us.
-				if (e == null || e.status == null || e.error != null) {
+				if (e?.status == null || e.error != null) {
 					return;
 				}
 
 				({ id, status } = e);
-				id ||= '';
-				status ||= '';
 
 				// Delta generation goes through the following stages:
 				//
@@ -411,7 +409,8 @@ class ProgressReporter {
 
 				// Ensure we always emit a final 100%
 				if (e.status.startsWith('Created delta: ')) {
-					return onProgress({ percentage: 100 });
+					onProgress({ percentage: 100 });
+					return;
 				}
 
 				// Defensively check whether this is a layer-related event but `id` is
@@ -491,7 +490,7 @@ class ProgressReporter {
 		const progressRenderer = this.renderProgress;
 		const progressTracker = new ProgressTracker(100 * 1024); // 100 KB
 		let lastPercentage = 0;
-		return (evt: any) => {
+		return (evt) => {
 			let id;
 			let status;
 			try {
@@ -510,7 +509,7 @@ class ProgressReporter {
 					['Pushed', 'Layer already exists', 'Image already exists'].includes(
 						status,
 					) ||
-					/^Mounted from /.test(status)
+					status.startsWith('Mounted from ')
 				) {
 					progressTracker.finishLayer(id);
 					// registry v1 statuses
@@ -554,7 +553,7 @@ class BalenaProgressReporter extends ProgressReporter {
 	pullProgress(onProgress: ProgressCallback): ProgressCallback {
 		const progressRenderer = this.renderProgress;
 		let lastPercentage = 0;
-		return (evt: any) => {
+		return (evt) => {
 			let id;
 			try {
 				({ id } = evt);
@@ -637,7 +636,7 @@ export class DockerProgress {
 		return _.times(
 			count,
 			(index) =>
-				function (evt: any): void {
+				function (evt): void {
 					// update current reporter state
 					states[index].percentage = evt.percentage;
 					// update totals
