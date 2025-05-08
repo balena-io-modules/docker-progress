@@ -36,6 +36,10 @@
     "rimraf": "^6.0.0",
     "typescript": "^5.3.3"
   },
+  "peerDependencies": {
+    "dockerode": ">=3.3.1",
+    "docker-modem": ">=3.0.3"
+  },
   "versionist": {
     "publishedAt": "2025-04-10T13:59:53.990Z"
   }
