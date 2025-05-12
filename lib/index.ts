@@ -36,6 +36,7 @@ export interface PullPushOptions {
 		auth?: string;
 		registrytoken?: string;
 	};
+	abortSignal: AbortSignal;
 }
 
 export interface BuildOptions extends ImageBuildOptions {
