@@ -1,4 +1,17 @@
 - commits:
+    - subject: Support AbortSignal option for image push/pull
+      hash: 3f4c3fe5dbfdf37740a6c80e0ef08a8dd91eb815
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Christina Ying Wang <christina@balena.io>
+        signed-off-by: Christina Ying Wang <christina@balena.io>
+      author: Christina Ying Wang
+  version: 5.3.0
+  title: ""
+  date: 2025-05-12T21:49:23.254Z
+- commits:
     - subject: Update @balena/lint to 9.x
       hash: 1266dd748790690c8df6ebf45ac64c9ad0f26a85
       body: ""
