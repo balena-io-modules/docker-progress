@@ -1,4 +1,15 @@
 - commits:
+    - subject: Make abortSignal optional in pull/push options
+      hash: 1d95c2219a79a928793a5d501b3003b0c3d9126a
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Felipe Lalanne
+  version: 5.3.1
+  title: ""
+  date: 2025-05-15T17:40:54.083Z
+- commits:
     - subject: Support AbortSignal option for image push/pull
       hash: 3f4c3fe5dbfdf37740a6c80e0ef08a8dd91eb815
       body: ""
