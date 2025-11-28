@@ -1,4 +1,15 @@
 - commits:
+    - subject: Fix TS errors for the latest dockerode
+      hash: 6e713c0d50393abfd6e342f6dd5a2447375ce362
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Thodoris Greasidis
+  version: 5.3.2
+  title: ""
+  date: 2025-11-28T17:25:12.012Z
+- commits:
     - subject: Make abortSignal optional in pull/push options
       hash: 1d95c2219a79a928793a5d501b3003b0c3d9126a
       body: ""
