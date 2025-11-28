@@ -1,4 +1,15 @@
 - commits:
+    - subject: Update flowzone workflow to allow external contributions
+      hash: d1b1699251cfd8384832319bbfc04f5b3bcf0957
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Thodoris Greasidis
+  version: 5.3.3
+  title: ""
+  date: 2025-11-28T17:29:49.302Z
+- commits:
     - subject: Fix TS errors for the latest dockerode
       hash: 6e713c0d50393abfd6e342f6dd5a2447375ce362
       body: ""
