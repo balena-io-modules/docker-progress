@@ -702,11 +702,16 @@ export class DockerProgress {
 		// Authconfig is not supported by docker `/build` endpoint but we support
 		// it here to provide a common interface with the `pull()` method
 		if (options?.authconfig) {
-			const { serveraddress, ...authconfig } = options.authconfig;
+			let serverAuthConfig: RegistryConfig | undefined;
+			if (
+				'serveraddress' in options.authconfig &&
+				options.authconfig.serveraddress
+			) {
+				const { serveraddress, ...authconfig } = options.authconfig;
+				serverAuthConfig = { [serveraddress]: authconfig } as RegistryConfig;
+			}
 			options.registryconfig = {
-				...(serveraddress &&
-					({ [serveraddress]: authconfig } as RegistryConfig)),
-
+				...serverAuthConfig,
 				// Override with registryconfig if it the same serveraddress
 				// is used in both options
 				...options.registryconfig,
