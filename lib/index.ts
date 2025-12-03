@@ -59,14 +59,87 @@ export type ProgressCallback = (eventObj: any) => void;
 
 const DEFAULT_PROGRESS_BAR_STEP_COUNT = 50;
 
-function tryExtractDigestHash(evt: {
-	aux?: { Digest?: string };
-	status?: unknown;
-}): string | undefined {
-	if (evt.aux?.Digest) {
+// https://github.com/moby/moby/blob/v26.1.5/api/types/types.go#L597
+// https://github.com/moby/moby/blob/v26.1.5/distribution/push_v2.go#L256
+// https://github.com/moby/moby/blob/v26.1.5/plugin/backend_linux.go#L462
+interface ApiTypes_PushResult {
+	Tag: string;
+	Digest: string;
+	Size: number;
+}
+
+// https://github.com/opencontainers/image-spec/blob/v1.1.1/specs-go/v1/descriptor.go#L22
+interface ImageSpecV1_Descriptor {
+	/* MediaType is the media type of the object this schema refers to. */
+	mediaType: string;
+	/* Digest is the digest of the targeted content (typically a SHA256 string). */
+	digest: string;
+	/* Size specifies the size in bytes of the blob. Go's int64 is a standard 'number' in TS. */
+	size: number;
+	/* URLs specifies a list of URLs from which this object MAY be downloaded. */
+	urls?: string[];
+	/* Annotations contains arbitrary metadata relating to the targeted content. */
+	annotations?: { [key: string]: string };
+	/* Data is an embedding of the targeted content. This is encoded as a base64 string when marshalled to JSON. Go's []byte maps to 'string' (base64) in JSON. */
+	data?: string;
+	/* Platform describes the platform which the image in the manifest runs on. This should only be used when referring to a manifest. */
+	platform?: {
+		architecture: string;
+		os: string;
+	};
+	/* ArtifactType is the IANA media type of this artifact. */
+	artifactType?: string;
+}
+// https://github.com/moby/moby/blob/v27.0.1/api/types/auxprogress/push.go#L10
+// https://github.com/moby/moby/blob/v27.0.1/daemon/containerd/image_push.go#L190
+interface ApiTypesAuxProgress_ManifestPushedInsteadOfIndex {
+	/** Always true */
+	manifestPushedInsteadOfIndex: boolean;
+	/** OriginalIndex is the descriptor of the original image index. */
+	originalIndex: ImageSpecV1_Descriptor;
+	/** SelectedManifest is the descriptor of the manifest that was pushed instead. */
+	selectedManifest: ImageSpecV1_Descriptor;
+}
+// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L31
+interface JSONProgress {
+	current?: number;
+	total?: number;
+	start?: number;
+	hidecounts?: boolean;
+	units?: string;
+}
+// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L21
+interface JSONError {
+	code?: number;
+	message?: string;
+}
+// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L31
+interface JSONMessage {
+	stream?: string;
+	status?: string;
+	progressDetail?: JSONProgress;
+	id?: string;
+	from?: string;
+	time?: number;
+	timeNano?: number;
+	errorDetail?: JSONError;
+	aux?: ApiTypes_PushResult | ApiTypesAuxProgress_ManifestPushedInsteadOfIndex; // | json.RawMessage
+}
+
+function tryExtractDigestHashFromAux(evt: JSONMessage): string | undefined {
+	if (evt.aux == null) {
+		return;
+	}
+	if ('Digest' in evt.aux && evt.aux.Digest) {
 		return evt.aux.Digest;
 	}
+	if ('selectedManifest' in evt.aux && evt.aux.selectedManifest?.digest) {
+		return evt.aux.selectedManifest.digest;
+	}
+}
+function tryParseDigestHashFromStatus(evt: JSONMessage): string | undefined {
 	if (typeof evt.status === 'string') {
+		// https://github.com/moby/moby/blob/v27.0.1/daemon/containerd/image_push.go#L130
 		const matchPull = evt.status.match(
 			/[Dd]igest:\s([a-zA-Z0-9]+:[a-f0-9]+)[\s$]/,
 		);
@@ -81,13 +154,16 @@ async function awaitRegistryStream(
 ): Promise<string> {
 	const JSONStream = await import('JSONStream');
 	return await new Promise((resolve, reject) => {
-		let contentHash = '';
+		let contentHashFromAux: string | undefined;
+		let contentHashFromStatus: string | undefined;
 		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse(undefined);
 
 		jsonStream.on('error', reject);
 		jsonStream.on('close', reject);
 		jsonStream.on('end', () => {
-			resolve(contentHash);
+			// We prefer the digest found in the structured event object otherwise
+			// we fallback to the one parsed from the logs.
+			resolve(contentHashFromAux ?? contentHashFromStatus ?? '');
 		});
 		jsonStream.on('data', (evt) => {
 			if (typeof evt !== 'object') {
@@ -98,9 +174,14 @@ async function awaitRegistryStream(
 					throw evt.error instanceof Error ? evt.error : new Error(evt.error);
 				}
 				// try to extract the digest before forwarding the object
-				const maybeContent = tryExtractDigestHash(evt);
-				if (maybeContent != null) {
-					contentHash = maybeContent;
+				const auxDigest = tryExtractDigestHashFromAux(evt);
+				if (auxDigest != null) {
+					contentHashFromAux = auxDigest;
+				} else {
+					const loggedDigest = tryParseDigestHashFromStatus(evt);
+					if (loggedDigest != null) {
+						contentHashFromStatus = loggedDigest;
+					}
 				}
 				onProgress(evt);
 			} catch (error) {
