@@ -67,7 +67,9 @@ function tryExtractDigestHash(evt: {
 		return evt.aux.Digest;
 	}
 	if (typeof evt.status === 'string') {
-		const matchPull = evt.status.match(/^Digest:\s([a-zA-Z0-9]+:[a-f0-9]+)$/);
+		const matchPull = evt.status.match(
+			/[Dd]igest:\s([a-zA-Z0-9]+:[a-f0-9]+)[\s$]/,
+		);
 		return matchPull?.[1];
 	}
 }
