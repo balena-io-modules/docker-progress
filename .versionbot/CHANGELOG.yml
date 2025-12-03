@@ -1,4 +1,25 @@
 - commits:
+    - subject: "pull: fix digest hash parsing"
+      hash: 69b72c1ef46f1d7fc9b2f642d91a956c646766de
+      body: |
+        The current code assumes the digest status line is in the form
+        `Digest: <alg>:<hash>`, taking up the whole line. This is not at all the
+        case on all docker daemon versions, which is now in the form
+        `<tag>: digest: <alg>:<hash> size: <size>`.
+
+        Fix the regex to accept both formats:
+
+        - accept leading characters before the digest part
+        - make the `d` case-insensitive
+        - accept trailing elements after the hash
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Tuetuopay
+  version: 5.3.4
+  title: ""
+  date: 2025-12-03T17:25:25.724Z
+- commits:
     - subject: Update flowzone workflow to allow external contributions
       hash: d1b1699251cfd8384832319bbfc04f5b3bcf0957
       body: ""
