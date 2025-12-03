@@ -1,4 +1,18 @@
 - commits:
+    - subject: "pull/push/build: Support detecting the result digest when pushing only
+        the reference of a pre-built image"
+      hash: 68c5bcbba8508d7bc2cdc1c2d59c9846be2e40ac
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+        See: https://forums.balena.io/t/deploy-fails-unable-to-extract-image-digest/373474/10
+        see: https://forums.balena.io/t/deploy-fails-unable-to-extract-image-digest/373474/10
+      author: Thodoris Greasidis
+  version: 5.4.0
+  title: ""
+  date: 2025-12-03T19:06:39.659Z
+- commits:
     - subject: "pull: fix digest hash parsing"
       hash: 69b72c1ef46f1d7fc9b2f642d91a956c646766de
       body: |
