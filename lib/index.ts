@@ -194,6 +194,7 @@ async function awaitRegistryStream(
 			}
 		});
 
+		stream.on('error', reject);
 		stream.pipe(jsonStream);
 	});
 }
