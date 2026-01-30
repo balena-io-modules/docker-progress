@@ -1,4 +1,35 @@
 - commits:
+    - subject: "awaitRegistryStream: Handle error events on source stream"
+      hash: 6318028a2f4687fe65de0c6f301ca6a027b453a2
+      body: >
+        Node's .pipe() does not propagate errors from source to destination.
+
+        If the Docker response stream errors, such as with network drop, socket
+
+        hangup, context cancellation, etc., the error is emitted only on
+
+        source stream. Without a listener there, this either crashes
+
+        the process or, if another listener swallows it, leaves the promise
+
+        hanging indefinitely.
+
+
+        Add stream.on('error', reject) so source stream errors properly reject
+        the promise.
+
+
+        Also add tests to assert the change functions as expected.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Christina Ying Wang <christina@balena.io>
+        signed-off-by: Christina Ying Wang <christina@balena.io>
+      author: Christina Ying Wang
+  version: 5.4.1
+  title: ""
+  date: 2026-01-30T22:04:39.358Z
+- commits:
     - subject: "pull/push/build: Support detecting the result digest when pushing only
         the reference of a pre-built image"
       hash: 68c5bcbba8508d7bc2cdc1c2d59c9846be2e40ac
