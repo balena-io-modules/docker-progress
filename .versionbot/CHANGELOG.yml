@@ -1,4 +1,17 @@
 - commits:
+    - subject: "Add id-token: write permission for NPM OIDC publishing"
+      hash: 8394fa4a7650c7fcc0ae11cd3fd87c04250c2d12
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+  version: 5.4.2
+  title: ""
+  date: 2026-02-19T01:58:07.291Z
+- commits:
     - subject: "awaitRegistryStream: Handle error events on source stream"
       hash: 6318028a2f4687fe65de0c6f301ca6a027b453a2
       body: >
