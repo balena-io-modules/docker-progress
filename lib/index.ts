@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-import * as _ from 'lodash';
 import type * as Stream from 'stream';
 
 import type {
@@ -204,7 +203,7 @@ async function awaitRegistryStream(
  * [==================================>               ] 64%
  */
 function $renderProgress(percentage: number, stepCount: number): string {
-	percentage = _.clamp(percentage, 0, 100);
+	percentage = Math.min(Math.max(percentage, 0), 100);
 	const barCount = Math.floor((stepCount * percentage) / 100);
 	const spaceCount = stepCount - barCount;
 	const bar = `[${'='.repeat(barCount)}>${' '.repeat(spaceCount)}]`;
@@ -243,9 +242,16 @@ class ProgressTracker {
 	}
 
 	getProgress(): number {
-		const layers = _.filter(this.layers, (l) => l.coalesced === false);
-		const avgProgress = _.meanBy(layers, (l) => l.progress) || 0;
-		return Math.round(100 * avgProgress);
+		let sum = 0;
+		let count = 0;
+		for (const layer of Object.values(this.layers)) {
+			if (layer.coalesced) {
+				continue;
+			}
+			count++;
+			sum += layer.progress ?? 0;
+		}
+		return count > 0 ? Math.round((100 * sum) / count) : 0;
 	}
 
 	patchProgressEvent(progress: { current: number; total: number }) {
@@ -329,14 +335,13 @@ class ProgressReporter {
 				);
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
-				onProgress(
-					_.merge(evt, {
-						percentage,
-						downloadedPercentage,
-						extractedPercentage,
-						totalProgress: progressRenderer(percentage),
-					}),
-				);
+				onProgress({
+					...evt,
+					percentage,
+					downloadedPercentage,
+					extractedPercentage,
+					totalProgress: progressRenderer(percentage),
+				});
 			} catch (err) {
 				this.checkProgressError(err as Error, `pull id=${id} status=${status}`);
 			}
@@ -613,13 +618,12 @@ class ProgressReporter {
 
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
-				onProgress(
-					_.merge(evt, {
-						id,
-						percentage,
-						totalProgress: progressRenderer(percentage),
-					}),
-				);
+				onProgress({
+					...evt,
+					id,
+					percentage,
+					totalProgress: progressRenderer(percentage),
+				});
 			} catch (err) {
 				this.checkProgressError(err as Error, `push id=${id} status=${status}`);
 			}
@@ -660,14 +664,13 @@ class BalenaProgressReporter extends ProgressReporter {
 				let percentage = Math.floor((current * 100) / total);
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
-				onProgress(
-					_.merge(evt, {
-						percentage,
-						downloadedPercentage: current,
-						extractedPercentage: current,
-						totalProgress: progressRenderer(percentage),
-					}),
-				);
+				onProgress({
+					...evt,
+					percentage,
+					downloadedPercentage: current,
+					extractedPercentage: current,
+					totalProgress: progressRenderer(percentage),
+				});
 			} catch (err) {
 				this.checkProgressError(err as Error, `balena pull id=${id}`);
 			}
@@ -715,18 +718,17 @@ export class DockerProgress {
 		onProgress: ProgressCallback,
 	): ProgressCallback[] {
 		const renderer = this.getProgressRenderer();
-		const states = _.times(count, () => ({
+		const states = Array.from({ length: count }, () => ({
 			percentage: 0,
 		}));
-		return _.times(
-			count,
-			(index) =>
+		return states.map(
+			(state, index) =>
 				function (evt): void {
 					// update current reporter state
-					states[index].percentage = evt.percentage;
+					state.percentage = evt.percentage;
 					// update totals
 					const percentage = Math.floor(
-						_.sumBy(states, 'percentage') / (states.length || 1),
+						states.reduce((sum, s) => sum + s.percentage, 0) / count,
 					);
 					// update event
 					evt.totalProgress = renderer(percentage);
