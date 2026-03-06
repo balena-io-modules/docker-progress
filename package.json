@@ -26,14 +26,12 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@types/dockerode": "^3.3.23",
-    "JSONStream": "^1.3.5",
-    "lodash": "^4.17.21"
+    "JSONStream": "^1.3.5"
   },
   "devDependencies": {
     "@balena/lint": "^9.2.2",
     "@types/chai": "^5.2.3",
     "@types/JSONStream": "npm:@types/jsonstream@^0.8.33",
-    "@types/lodash": "^4.14.202",
     "@types/mocha": "^10.0.10",
     "chai": "^6.2.2",
     "mocha": "^11.7.5",
