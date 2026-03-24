@@ -1,4 +1,16 @@
 - commits:
+    - subject: Pin product-os/flowzone action to a53cf4b
+      hash: d5f7e1d0d86a9ded8380c4f58428db2be1e30c3e
+      body: |
+        Update product-os/flowzone
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+  version: 5.4.4
+  title: ""
+  date: 2026-03-24T18:12:49.869Z
+- commits:
     - subject: Remove lodash
       hash: 0787a9eaafa362cf1c9feb77bab829947cb64cc9
       body: ""
