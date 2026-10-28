@@ -439,3 +439,26 @@ describe('awaitRegistryStream invalid JSON', () => {
 		expect(sourceStream.destroyed).to.equal(true);
 	});
 });
+
+describe('build() with BuildKit', () => {
+	it('does not fail on events with a non-object aux', async () => {
+		const sourceStream = new PassThrough();
+		const mockDocker = {
+			version: async () => ({ Version: '27.0.0' }),
+			buildImage: async () => sourceStream,
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			sourceStream.end(
+				// BuildKit trace events have a base64 encoded protobuf as their aux
+				JSON.stringify({ id: 'moby.buildkit.trace', aux: 'CmsKR3NoYTI1Ng==' }) +
+					'\r\n',
+			);
+		}, 50);
+
+		expect(
+			await dp.build(new PassThrough(), () => {}, { version: '2' }),
+		).to.equal('');
+	});
+});
