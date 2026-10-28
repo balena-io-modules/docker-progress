@@ -23,7 +23,6 @@ import type {
 	ImagePushOptions,
 	ImageBuildOptions,
 	AuthConfig,
-	RegistryConfig,
 } from 'dockerode';
 
 export interface EngineVersion extends DockerVersion {
@@ -39,17 +38,23 @@ export interface PullPushOptions {
 	abortSignal?: AbortSignal;
 }
 
-export interface BuildOptions extends ImageBuildOptions {
+export interface BuildOptions extends Omit<
+	ImageBuildOptions,
+	'registryconfig'
+> {
 	ignoreProgressErrorEvents?: boolean;
 	authconfig?: AuthConfig & {
 		auth?: string;
 		registrytoken?: string;
 	};
-	registryconfig?: RegistryConfig & {
+	// Replaces dockerode's RegistryConfig, which requires a username and
+	// password for every registry even though eg. a token can be used instead
+	registryconfig?: {
 		[registryAddress: string]: {
 			username?: string;
 			password?: string;
 			auth?: string;
+			identitytoken?: string;
 			registrytoken?: string;
 		};
 	};
@@ -830,13 +835,13 @@ export class DockerProgress {
 		// Authconfig is not supported by docker `/build` endpoint but we support
 		// it here to provide a common interface with the `pull()` method
 		if (buildOptions.authconfig) {
-			let serverAuthConfig: RegistryConfig | undefined;
+			let serverAuthConfig: BuildOptions['registryconfig'];
 			if (
 				'serveraddress' in buildOptions.authconfig &&
 				buildOptions.authconfig.serveraddress
 			) {
 				const { serveraddress, ...authconfig } = buildOptions.authconfig;
-				serverAuthConfig = { [serveraddress]: authconfig } as RegistryConfig;
+				serverAuthConfig = { [serveraddress]: authconfig };
 			}
 			buildOptions.registryconfig = {
 				...serverAuthConfig,
@@ -850,7 +855,11 @@ export class DockerProgress {
 
 		const reporter = await this.getProgressReporter();
 		onProgress = reporter.buildProgress(onProgress);
-		const stream = await this.docker.buildImage(tarStream, buildOptions);
+		const stream = await this.docker.buildImage(
+			tarStream,
+			// Our registryconfig type is less strict than dockerode's
+			buildOptions as ImageBuildOptions,
+		);
 		const hash = await awaitRegistryStream(
 			stream,
 			onProgress,
