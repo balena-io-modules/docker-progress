@@ -555,3 +555,109 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('awaitRegistryStream error events', () => {
+	const streamOf = (events: object[]) => {
+		const stream = new PassThrough();
+		for (const evt of events) {
+			stream.write(JSON.stringify(evt) + '\r\n');
+		}
+		stream.end();
+		return stream;
+	};
+
+	it('pull() rejects on an error event with only an errorDetail', async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () =>
+				streamOf([{ errorDetail: { message: 'manifest unknown' } }]),
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		try {
+			await dp.pull('test-image', () => {});
+			expect.fail('Expected promise to reject');
+		} catch (err: any) {
+			expect(err).to.be.an.instanceOf(Error);
+			expect(err.message).to.equal('manifest unknown');
+		}
+	});
+
+	it('pull() prefers the error over the errorDetail message', async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () =>
+				streamOf([
+					{
+						error: 'error message',
+						errorDetail: { message: 'detail message' },
+					},
+				]),
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		try {
+			await dp.pull('test-image', () => {});
+			expect.fail('Expected promise to reject');
+		} catch (err: any) {
+			expect(err.message).to.equal('error message');
+		}
+	});
+
+	it('pull() rejects on an error event with an empty error and an errorDetail', async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () =>
+				streamOf([{ error: '', errorDetail: { message: 'boom' } }]),
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		let err: any;
+		try {
+			await dp.pull('test-image', () => {});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).to.be.an.instanceOf(Error);
+		expect(err.message).to.equal('boom');
+	});
+
+	it('pull() rejects on an error event with an errorDetail without a message', async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => streamOf([{ errorDetail: { code: 500 } }]),
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		let err: any;
+		try {
+			await dp.pull('test-image', () => {});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).to.be.an.instanceOf(Error);
+		expect(err.message).to.equal(
+			'Received an error event without a message (code 500)',
+		);
+	});
+
+	it('pull() ignores error events with ignoreProgressErrorEvents', async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () =>
+				streamOf([{ errorDetail: { message: 'manifest unknown' } }]),
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		expect(
+			await dp.pull('test-image', () => {}, {
+				ignoreProgressErrorEvents: true,
+			}),
+		).to.equal('');
+	});
+});

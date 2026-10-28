@@ -156,6 +156,19 @@ function tryParseDigestHashFromStatus(evt: JSONMessage): string | undefined {
 	}
 }
 
+// The docker CLI fails on any `errorDetail`, see `JSONMessage.Display` in
+// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go
+function getErrorEventMessage(evt: JSONMessage & { error?: unknown }): string {
+	if (typeof evt.error === 'string' && evt.error !== '') {
+		return evt.error;
+	}
+	if (typeof evt.errorDetail?.message === 'string' && evt.errorDetail.message) {
+		return evt.errorDetail.message;
+	}
+	const code = evt.errorDetail?.code;
+	return `Received an error event without a message${code != null ? ` (code ${code})` : ''}`;
+}
+
 async function awaitRegistryStream(
 	stream: NodeJS.ReadableStream,
 	onProgress: ProgressCallback,
@@ -187,8 +200,9 @@ async function awaitRegistryStream(
 				return;
 			}
 			try {
-				if (evt.error && !ignoreErrorEvents) {
-					throw evt.error instanceof Error ? evt.error : new Error(evt.error);
+				// `error` is deprecated in favour of `errorDetail`
+				if ((evt.error || evt.errorDetail != null) && !ignoreErrorEvents) {
+					throw new Error(getErrorEventMessage(evt));
 				}
 				// try to extract the digest before forwarding the object
 				const auxDigest = tryExtractDigestHashFromAux(evt);
