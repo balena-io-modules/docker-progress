@@ -555,3 +555,107 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('awaitRegistryStream after a failure', () => {
+	it('pull() does not report progress for events after an error event', async () => {
+		const sourceStream = new PassThrough();
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			// Both events arrive in the same chunk
+			sourceStream.write(
+				[
+					{
+						error: 'manifest unknown',
+						errorDetail: { message: 'manifest unknown' },
+					},
+					{ status: 'Pulling fs layer', id: 'layer' },
+				]
+					.map((evt) => JSON.stringify(evt) + '\r\n')
+					.join(''),
+			);
+		}, 50);
+
+		const statuses: string[] = [];
+		try {
+			await dp.pull('test-image', (evt) => statuses.push(evt.status));
+			expect.fail('Expected promise to reject');
+		} catch (err: any) {
+			expect(err.message).to.equal('manifest unknown');
+		}
+		expect(statuses).to.deep.equal([]);
+	});
+
+	it('pull() does not report progress for chunks buffered before an error event', async () => {
+		const sourceStream = new PassThrough();
+		// Each event is a separate chunk, all buffered before they are read
+		for (const evt of [
+			{
+				error: 'manifest unknown',
+				errorDetail: { message: 'manifest unknown' },
+			},
+			{ status: 'Pulling fs layer', id: 'layer1' },
+			{ status: 'Pulling fs layer', id: 'layer2' },
+		]) {
+			sourceStream.write(JSON.stringify(evt) + '\r\n');
+		}
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const statuses: string[] = [];
+		let err: any;
+		try {
+			await dp.pull('test-image', (evt) => statuses.push(evt.status));
+		} catch (e) {
+			err = e;
+		}
+		expect(err).to.be.an.instanceOf(Error);
+		expect(err.message).to.equal('manifest unknown');
+		expect(statuses).to.deep.equal([]);
+	});
+
+	it('pull() does not report progress for events after onProgress throws', async () => {
+		const sourceStream = new PassThrough();
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			sourceStream.write(
+				[
+					{ status: 'Pulling from library/alpine', id: 'latest' },
+					{ status: 'Pulling fs layer', id: 'layer' },
+				]
+					.map((evt) => JSON.stringify(evt) + '\r\n')
+					.join(''),
+			);
+		}, 50);
+
+		const statuses: string[] = [];
+		try {
+			await dp.pull('test-image', (evt) => {
+				statuses.push(evt.status);
+				throw new Error('onProgress failed');
+			});
+			expect.fail('Expected promise to reject');
+		} catch (err: any) {
+			expect(err.message).to.match(/onProgress failed$/);
+		}
+		expect(statuses).to.deep.equal(['Pulling from library/alpine']);
+	});
+});
