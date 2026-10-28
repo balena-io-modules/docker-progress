@@ -462,3 +462,96 @@ describe('build() with BuildKit', () => {
 		).to.equal('');
 	});
 });
+
+describe('balena-engine pull progress', () => {
+	const getReporter = async () => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0', Engine: 'balena-engine' }),
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp['getProgressReporter']();
+	};
+
+	it('reports the downloaded/extracted percentages rather than byte counts', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({
+			id: 'Total',
+			progressDetail: { current: 5_000_000, total: 10_000_000 },
+		});
+
+		expect(events).to.have.length(1);
+		expect(events[0]).to.include({
+			percentage: 50,
+			downloadedPercentage: 50,
+			extractedPercentage: 50,
+		});
+	});
+
+	it('does not report NaN when the total is 0', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ id: 'Total', progressDetail: { current: 0, total: 0 } });
+
+		expect(events).to.have.length(1);
+		expect(events[0]).to.have.property('percentage', 0);
+		expect(events[0].totalProgress).to.match(/ 0%$/);
+	});
+
+	it('reports 0 when the first total is omitted', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ id: 'Total', progressDetail: { current: 5_000_000 } });
+
+		expect(events).to.have.length(1);
+		expect(events[0]).to.include({
+			percentage: 0,
+			downloadedPercentage: 0,
+			extractedPercentage: 0,
+		});
+		expect(events[0].totalProgress).to.match(/ 0%$/);
+	});
+
+	it('keeps the last percentage while the total is 0 or omitted', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({
+			id: 'Total',
+			progressDetail: { current: 5_000_000, total: 10_000_000 },
+		});
+		onProgress({
+			id: 'Total',
+			progressDetail: { current: 6_000_000, total: 0 },
+		});
+		// The engine omits a total of 0
+		onProgress({ id: 'Total', progressDetail: { current: 7_000_000 } });
+
+		expect(events.map((e) => e.percentage)).to.deep.equal([50, 50, 50]);
+		expect(events[2]).to.include({
+			downloadedPercentage: 50,
+			extractedPercentage: 50,
+		});
+	});
+
+	it('caps the percentage at 100 when current exceeds the total', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({
+			id: 'Total',
+			progressDetail: { current: 12_000_000, total: 10_000_000 },
+		});
+
+		expect(events[0]).to.have.property('percentage', 100);
+		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
