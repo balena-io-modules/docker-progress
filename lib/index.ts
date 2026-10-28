@@ -407,10 +407,14 @@ class ProgressReporter {
 					if (step >= lastStep) {
 						if (instruction.toLowerCase().startsWith('from')) {
 							// If this is a FROM instruction, delegate progress to a new pullProgress
-							// callback
+							// callback, scaled into this step's share of the build. Capture the
+							// step, as it may change while this callback still gets events
+							const fromStep = step;
+							const fromTotal = total;
 							progressCallback = this.pullProgress(({ percentage, ...e }) => {
-								// Scale the progress from the pull step by the number of steps
-								percentage = Math.floor((step * percentage) / total);
+								percentage = Math.floor(
+									(100 * (fromStep - 1) + percentage) / fromTotal,
+								);
 								percentage = lastPercentage = Math.max(
 									lastPercentage,
 									percentage,

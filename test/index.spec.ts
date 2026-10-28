@@ -555,3 +555,62 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('build progress', () => {
+	const getReporter = async () => {
+		const mockDocker = { version: async () => ({ Version: '20.10.0' }) };
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp['getProgressReporter']();
+	};
+
+	it('scales the pull progress of a FROM into the share of its step', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		for (let i = 1; i <= 4; i++) {
+			onProgress({ stream: `Step ${i}/10 : RUN echo ${i}` });
+		}
+		onProgress({ stream: 'Step 5/10 : FROM alpine' });
+		expect(events[events.length - 1]).to.have.property('percentage', 40);
+
+		onProgress({ status: 'Pulling fs layer', id: 'layer' });
+		// Downloaded but not extracted, ie. the pull is at 50%
+		onProgress({
+			status: 'Downloading',
+			id: 'layer',
+			progressDetail: { current: 50_000_000, total: 50_000_000 },
+		});
+		expect(events[events.length - 1]).to.have.property('percentage', 45);
+
+		onProgress({
+			status: 'Extracting',
+			id: 'layer',
+			progressDetail: { current: 50_000_000, total: 50_000_000 },
+		});
+		onProgress({ status: 'Pull complete', id: 'layer' });
+		expect(events[events.length - 1]).to.have.property('percentage', 50);
+	});
+
+	it('keeps the pull progress of a FROM within the share of its step', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		for (let i = 1; i <= 8; i++) {
+			onProgress({ stream: `Step ${i}/12 : RUN echo ${i}` });
+		}
+		onProgress({ stream: 'Step 9/12 : FROM alpine' });
+		onProgress({ status: 'Pulling fs layer', id: 'layer' });
+		for (const status of ['Downloading', 'Extracting']) {
+			onProgress({
+				status,
+				id: 'layer',
+				progressDetail: { current: 50_000_000, total: 50_000_000 },
+			});
+		}
+		expect(events[events.length - 1]).to.have.property('percentage', 75);
+
+		onProgress({ stream: 'Step 10/12 : RUN echo 10' });
+		onProgress({ stream: ' ---> Running in 0123456789ab' });
+		expect(events.slice(-2).map((e) => e.percentage)).to.deep.equal([75, 75]);
+	});
+});
