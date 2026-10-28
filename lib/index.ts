@@ -55,7 +55,38 @@ export interface BuildOptions extends ImageBuildOptions {
 	};
 }
 
-export type ProgressCallback = (eventObj: any) => void;
+/** An engine event with the progress info added by docker-progress */
+export interface ProgressEvent extends JSONMessage {
+	percentage: number;
+	/** A rendered progress bar, eg. `[=====>      ] 50%` */
+	totalProgress: string;
+}
+
+export interface PullProgressEvent extends ProgressEvent {
+	downloadedPercentage: number;
+	extractedPercentage: number;
+}
+
+// The default event type of ProgressCallback
+export type PushProgressEvent = ProgressEvent;
+
+export type BuildProgressEvent = ProgressEvent &
+	// Only while pulling the image of a FROM instruction
+	Partial<
+		Pick<PullProgressEvent, 'downloadedPercentage' | 'extractedPercentage'>
+	>;
+
+export type DeltaProgressEvent = Pick<
+	ProgressEvent,
+	'percentage' | 'totalProgress'
+>;
+
+export interface AggregatedProgressEvent extends ProgressEvent {
+	/** The index of the aggregated progress callback that received the event */
+	progressIndex: number;
+}
+
+export type ProgressCallback<T = ProgressEvent> = (eventObj: T) => void;
 
 const DEFAULT_PROGRESS_BAR_STEP_COUNT = 50;
 
@@ -101,7 +132,7 @@ interface ApiTypesAuxProgress_ManifestPushedInsteadOfIndex {
 	selectedManifest: ImageSpecV1_Descriptor;
 }
 // https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L31
-interface JSONProgress {
+export interface JSONProgress {
 	current?: number;
 	total?: number;
 	start?: number;
@@ -109,20 +140,25 @@ interface JSONProgress {
 	units?: string;
 }
 // https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L21
-interface JSONError {
+export interface JSONError {
 	code?: number;
 	message?: string;
 }
-// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L31
-interface JSONMessage {
+/** An event of the engine's JSON progress stream */
+// https://github.com/moby/moby/blob/v27.0.1/pkg/jsonmessage/jsonmessage.go#L145
+export interface JSONMessage {
 	stream?: string;
 	status?: string;
 	progressDetail?: JSONProgress;
+	/** @deprecated */
+	progress?: string;
 	id?: string;
 	from?: string;
 	time?: number;
 	timeNano?: number;
 	errorDetail?: JSONError;
+	/** @deprecated in favour of `errorDetail` */
+	error?: string;
 	aux?:
 		| ApiTypes_PushResult
 		| ApiTypesAuxProgress_ManifestPushedInsteadOfIndex
@@ -158,7 +194,7 @@ function tryParseDigestHashFromStatus(evt: JSONMessage): string | undefined {
 
 async function awaitRegistryStream(
 	stream: NodeJS.ReadableStream,
-	onProgress: ProgressCallback,
+	onProgress: ProgressCallback<JSONMessage>,
 	ignoreErrorEvents: boolean,
 	// Builds stream the status of pulling their base images, including its
 	// `Digest: <digest>`, which is not the digest of the build result
@@ -305,12 +341,14 @@ class ProgressReporter {
 	 *
 	 * @param onProgress Image pull progress event handler to be wrapped
 	 */
-	pullProgress(onProgress: ProgressCallback): ProgressCallback {
+	pullProgress(
+		onProgress: ProgressCallback<PullProgressEvent>,
+	): ProgressCallback<JSONMessage> {
 		const progressRenderer = this.renderProgress;
 		const downloadProgressTracker = new ProgressTracker(100 * 1024); // 100 KB
 		const extractionProgressTracker = new ProgressTracker(1024 * 1024); // 1 MB
 		let lastPercentage = 0;
-		return (evt) => {
+		return (evt: any) => {
 			let id;
 			let status;
 			try {
@@ -362,7 +400,7 @@ class ProgressReporter {
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
 				onProgress({
-					...evt,
+					...(evt as JSONMessage),
 					percentage,
 					downloadedPercentage,
 					extractedPercentage,
@@ -374,16 +412,18 @@ class ProgressReporter {
 		};
 	}
 
-	buildProgress(onProgress: ProgressCallback): ProgressCallback {
+	buildProgress(
+		onProgress: ProgressCallback<BuildProgressEvent>,
+	): ProgressCallback<JSONMessage> {
 		const progressRenderer = this.renderProgress;
 		let lastStep = 1;
 		let step = 0;
 		let total = 1;
 		let lastPercentage = 0;
 
-		let progressCallback: ProgressCallback = () => void 0;
+		let progressCallback: ProgressCallback<JSONMessage> = () => void 0;
 
-		return (evt) => {
+		return (evt: any) => {
 			let stream;
 			let id;
 			let status;
@@ -453,7 +493,9 @@ class ProgressReporter {
 		};
 	}
 
-	deltaProgress(onProgress: ProgressCallback): ProgressCallback {
+	deltaProgress(
+		onProgress: ProgressCallback<DeltaProgressEvent>,
+	): ProgressCallback<JSONMessage> {
 		const progressRenderer = this.renderProgress;
 
 		const state: {
@@ -481,7 +523,7 @@ class ProgressReporter {
 			'Skipping common layer',
 		];
 
-		return (e) => {
+		return (e: any) => {
 			let id;
 			let status;
 
@@ -601,11 +643,13 @@ class ProgressReporter {
 	 *
 	 * @param onProgress Image push progress event handler to be wrapped
 	 */
-	pushProgress(onProgress: ProgressCallback): ProgressCallback {
+	pushProgress(
+		onProgress: ProgressCallback, // ie. ProgressCallback<PushProgressEvent>
+	): ProgressCallback<JSONMessage> {
 		const progressRenderer = this.renderProgress;
 		const progressTracker = new ProgressTracker(100 * 1024); // 100 KB
 		let lastPercentage = 0;
-		return (evt) => {
+		return (evt: any) => {
 			let id;
 			let status;
 			try {
@@ -644,7 +688,7 @@ class ProgressReporter {
 				percentage = lastPercentage = Math.max(percentage, lastPercentage);
 
 				onProgress({
-					...evt,
+					...(evt as JSONMessage),
 					id,
 					percentage,
 					totalProgress: progressRenderer(percentage),
@@ -664,10 +708,12 @@ class BalenaProgressReporter extends ProgressReporter {
 	 *
 	 * @param onProgress Image pull progress event handler to be wrapped
 	 */
-	pullProgress(onProgress: ProgressCallback): ProgressCallback {
+	pullProgress(
+		onProgress: ProgressCallback<PullProgressEvent>,
+	): ProgressCallback<JSONMessage> {
 		const progressRenderer = this.renderProgress;
 		let lastPercentage = 0;
-		return (evt) => {
+		return (evt: any) => {
 			let id;
 			try {
 				({ id } = evt);
@@ -693,7 +739,7 @@ class BalenaProgressReporter extends ProgressReporter {
 				const percentage = lastPercentage;
 
 				onProgress({
-					...evt,
+					...(evt as JSONMessage),
 					percentage,
 					// balena-engine downloads and extracts layers at the same time,
 					// so both stages share the same progress
@@ -745,7 +791,7 @@ export class DockerProgress {
 
 	aggregateProgress(
 		count: number,
-		onProgress: ProgressCallback,
+		onProgress: ProgressCallback<AggregatedProgressEvent>,
 	): ProgressCallback[] {
 		const renderer = this.getProgressRenderer();
 		const states = Array.from({ length: count }, () => ({
@@ -763,9 +809,8 @@ export class DockerProgress {
 					// update event
 					evt.totalProgress = renderer(percentage);
 					evt.percentage = percentage;
-					evt.progressIndex = index;
 					// call callback with aggregate event
-					onProgress(evt);
+					onProgress(Object.assign(evt, { progressIndex: index }));
 				},
 		);
 	}
@@ -773,18 +818,18 @@ export class DockerProgress {
 	/** Pull docker image calling onProgress with extended progress info regularly */
 	async pull(
 		image: string,
-		onProgress: ProgressCallback,
+		onProgress: ProgressCallback<PullProgressEvent>,
 		options?: PullPushOptions,
 	): Promise<string> {
 		// Separate our own options so that they are not sent to the engine
 		const { ignoreProgressErrorEvents, ...pullOptions } = options ?? {};
 		const ignoreErrorEvents = !!ignoreProgressErrorEvents;
 		const reporter = await this.getProgressReporter();
-		onProgress = reporter.pullProgress(onProgress);
+		const onEngineProgress = reporter.pullProgress(onProgress);
 		const stream = await this.docker.pull(image, pullOptions);
 		const hash = await awaitRegistryStream(
 			stream,
-			onProgress,
+			onEngineProgress,
 			ignoreErrorEvents,
 			true,
 		);
@@ -794,19 +839,19 @@ export class DockerProgress {
 	/** Push docker image calling onProgress with extended progress info regularly */
 	async push(
 		image: string,
-		onProgress: ProgressCallback,
+		onProgress: ProgressCallback, // ie. ProgressCallback<PushProgressEvent>
 		options?: PullPushOptions,
 	): Promise<string> {
 		// Separate our own options so that they are not sent to the engine
 		const { ignoreProgressErrorEvents, ...pushOptions } = options ?? {};
 		const ignoreErrorEvents = !!ignoreProgressErrorEvents;
 		const reporter = await this.getProgressReporter();
-		onProgress = reporter.pushProgress(onProgress);
+		const onEngineProgress = reporter.pushProgress(onProgress);
 		const imageObj = this.docker.getImage(image);
 		const stream = await imageObj.push(pushOptions as ImagePushOptions);
 		const hash = await awaitRegistryStream(
 			stream,
-			onProgress,
+			onEngineProgress,
 			ignoreErrorEvents,
 			true,
 		);
@@ -816,7 +861,7 @@ export class DockerProgress {
 	/** Build docker image calling onProgress with extended progress info regularly */
 	async build(
 		tarStream: Stream.Readable,
-		onProgress: ProgressCallback,
+		onProgress: ProgressCallback<BuildProgressEvent>,
 		options?: BuildOptions,
 	): Promise<string> {
 		// Separate our own options so that they are not sent to the engine, and
@@ -849,11 +894,11 @@ export class DockerProgress {
 		}
 
 		const reporter = await this.getProgressReporter();
-		onProgress = reporter.buildProgress(onProgress);
+		const onEngineProgress = reporter.buildProgress(onProgress);
 		const stream = await this.docker.buildImage(tarStream, buildOptions);
 		const hash = await awaitRegistryStream(
 			stream,
-			onProgress,
+			onEngineProgress,
 			ignoreErrorEvents,
 			false,
 		);
@@ -862,8 +907,8 @@ export class DockerProgress {
 	}
 
 	async makeDeltaProgressReporter(
-		onProgress: ProgressCallback,
-	): Promise<ProgressCallback> {
+		onProgress: ProgressCallback<DeltaProgressEvent>,
+	): Promise<ProgressCallback<JSONMessage>> {
 		const reporter = await this.getProgressReporter();
 		return reporter.deltaProgress(onProgress);
 	}
