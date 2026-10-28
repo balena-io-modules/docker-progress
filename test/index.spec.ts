@@ -305,3 +305,107 @@ describe('build progress', () => {
 		expect(events[events.length - 1]).to.have.property('percentage', 75);
 	});
 });
+
+describe('options', () => {
+	const endedStream = () => {
+		const stream = new PassThrough();
+		stream.end();
+		return stream;
+	};
+
+	const getDocker = () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async (_image: string, opts: any) => {
+				received.push(opts);
+				return endedStream();
+			},
+			getImage: () => ({
+				push: async (opts: any) => {
+					received.push(opts);
+					return endedStream();
+				},
+			}),
+			buildImage: async (_tarStream: any, opts: any) => {
+				received.push(opts);
+				return endedStream();
+			},
+		};
+		return {
+			received,
+			dp: new DockerProgress({ docker: mockDocker as any }),
+		};
+	};
+
+	it('does not send ignoreProgressErrorEvents to the engine', async () => {
+		const { dp, received } = getDocker();
+
+		const options = { ignoreProgressErrorEvents: true };
+		await dp.pull('alpine', () => {}, options);
+		await dp.push('alpine', () => {}, options);
+		await dp.build(new PassThrough(), () => {}, { ...options, t: 'alpine' });
+
+		expect(received).to.have.length(3);
+		for (const opts of received) {
+			expect(opts).to.not.have.property('ignoreProgressErrorEvents');
+		}
+		expect(received[2]).to.have.property('t', 'alpine');
+	});
+
+	it('treats null options like undefined', async () => {
+		const { dp, received } = getDocker();
+
+		await dp.pull('alpine', () => {}, null as any);
+		await dp.push('alpine', () => {}, null as any);
+		await dp.build(new PassThrough(), () => {}, null as any);
+
+		expect(received).to.have.length(3);
+		for (const opts of received) {
+			// dockerode treats null and undefined options like `{}`
+			expect(opts ?? {}).to.deep.equal({});
+		}
+	});
+
+	it('does not modify the build() options, so they can be reused for a retry', async () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			buildImage: async (_tarStream: any, opts: any) => {
+				received.push({ ...opts });
+				// Mirror dockerode/docker-modem, which remove these from the options
+				delete opts.authconfig;
+				delete opts.registryconfig;
+				delete opts.abortSignal;
+				return endedStream();
+			},
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const abortSignal = new AbortController().signal;
+		const options = {
+			t: 'alpine',
+			abortSignal,
+			authconfig: {
+				username: 'user',
+				password: 'pass',
+				serveraddress: 'registry.example.com',
+			},
+		};
+		const originalOptions = { ...options };
+		await dp.build(new PassThrough(), () => {}, options);
+		await dp.build(new PassThrough(), () => {}, options);
+
+		expect(options).to.deep.equal(originalOptions);
+		expect(received).to.have.length(2);
+		for (const opts of received) {
+			expect(opts).to.deep.equal({
+				t: 'alpine',
+				abortSignal,
+				registryconfig: {
+					'registry.example.com': { username: 'user', password: 'pass' },
+				},
+			});
+		}
+	});
+});

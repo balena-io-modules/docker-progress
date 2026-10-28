@@ -761,10 +761,12 @@ export class DockerProgress {
 		onProgress: ProgressCallback,
 		options?: PullPushOptions,
 	): Promise<string> {
-		const ignoreErrorEvents = !!options?.ignoreProgressErrorEvents;
+		// Separate our own options so that they are not sent to the engine
+		const { ignoreProgressErrorEvents, ...pullOptions } = options ?? {};
+		const ignoreErrorEvents = !!ignoreProgressErrorEvents;
 		const reporter = await this.getProgressReporter();
 		onProgress = reporter.pullProgress(onProgress);
-		const stream = await this.docker.pull(image, options);
+		const stream = await this.docker.pull(image, pullOptions);
 		const hash = await awaitRegistryStream(
 			stream,
 			onProgress,
@@ -780,11 +782,13 @@ export class DockerProgress {
 		onProgress: ProgressCallback,
 		options?: PullPushOptions,
 	): Promise<string> {
-		const ignoreErrorEvents = !!options?.ignoreProgressErrorEvents;
+		// Separate our own options so that they are not sent to the engine
+		const { ignoreProgressErrorEvents, ...pushOptions } = options ?? {};
+		const ignoreErrorEvents = !!ignoreProgressErrorEvents;
 		const reporter = await this.getProgressReporter();
 		onProgress = reporter.pushProgress(onProgress);
 		const imageObj = this.docker.getImage(image);
-		const stream = await imageObj.push(options as ImagePushOptions);
+		const stream = await imageObj.push(pushOptions as ImagePushOptions);
 		const hash = await awaitRegistryStream(
 			stream,
 			onProgress,
@@ -800,32 +804,38 @@ export class DockerProgress {
 		onProgress: ProgressCallback,
 		options?: BuildOptions,
 	): Promise<string> {
-		const ignoreErrorEvents = !!options?.ignoreProgressErrorEvents;
+		// Separate our own options so that they are not sent to the engine, and
+		// work on a copy of the rest as both we and dockerode modify them (eg.
+		// removing `authconfig`/`registryconfig`/`abortSignal` or stringifying
+		// `cachefrom`), which would otherwise break reusing the same options, eg.
+		// for a retry
+		const { ignoreProgressErrorEvents, ...buildOptions } = options ?? {};
+		const ignoreErrorEvents = !!ignoreProgressErrorEvents;
 
 		// Authconfig is not supported by docker `/build` endpoint but we support
 		// it here to provide a common interface with the `pull()` method
-		if (options?.authconfig) {
+		if (buildOptions.authconfig) {
 			let serverAuthConfig: RegistryConfig | undefined;
 			if (
-				'serveraddress' in options.authconfig &&
-				options.authconfig.serveraddress
+				'serveraddress' in buildOptions.authconfig &&
+				buildOptions.authconfig.serveraddress
 			) {
-				const { serveraddress, ...authconfig } = options.authconfig;
+				const { serveraddress, ...authconfig } = buildOptions.authconfig;
 				serverAuthConfig = { [serveraddress]: authconfig } as RegistryConfig;
 			}
-			options.registryconfig = {
+			buildOptions.registryconfig = {
 				...serverAuthConfig,
 				// Override with registryconfig if it the same serveraddress
 				// is used in both options
-				...options.registryconfig,
+				...buildOptions.registryconfig,
 			};
 
-			delete options.authconfig;
+			delete buildOptions.authconfig;
 		}
 
 		const reporter = await this.getProgressReporter();
 		onProgress = reporter.buildProgress(onProgress);
-		const stream = await this.docker.buildImage(tarStream, options);
+		const stream = await this.docker.buildImage(tarStream, buildOptions);
 		const hash = await awaitRegistryStream(
 			stream,
 			onProgress,
