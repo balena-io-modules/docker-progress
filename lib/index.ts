@@ -831,8 +831,12 @@ export class DockerProgress {
 			// optimization for simultaneous async calls to pull()
 			// or push() with Promise.all(...)
 			this.engineVersionPromise ??= this.docker.version();
-			this.engineVersion = await this.engineVersionPromise;
-			this.engineVersionPromise = undefined;
+			try {
+				this.engineVersion = await this.engineVersionPromise;
+			} finally {
+				// Also clear it on failure, so that the next call can retry
+				this.engineVersionPromise = undefined;
+			}
 		}
 		return ['balena', 'balaena', 'balena-engine'].includes(
 			this.engineVersion['Engine'] ?? '',
