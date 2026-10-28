@@ -555,3 +555,31 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('pull progress with linked layers', () => {
+	const getReporter = async () => {
+		const mockDocker = { version: async () => ({ Version: '20.10.0' }) };
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp['getProgressReporter']();
+	};
+
+	it('links a layer that has not been added yet', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ status: 'Ready to download', id: 'layer' });
+		onProgress({
+			status: 'Extracting',
+			id: 'layer',
+			progressDetail: { current: 25_000_000, total: 50_000_000 },
+		});
+
+		expect(events).to.have.length(2);
+		// The linked layer counts for both the download and extraction progress
+		expect(events[1]).to.include({
+			downloadedPercentage: 50,
+			extractedPercentage: 50,
+		});
+	});
+});

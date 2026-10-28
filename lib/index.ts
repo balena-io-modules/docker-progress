@@ -247,6 +247,10 @@ class ProgressTracker {
 	}
 
 	linkLayer(id: string, tracker: ProgressTracker) {
+		// Make sure there is a record to link, otherwise we would store undefined
+		if (!tracker.layers[id]) {
+			tracker.addLayer(id);
+		}
 		this.layers[id] = tracker.layers[id];
 	}
 
