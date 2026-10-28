@@ -281,6 +281,13 @@ class ProgressTracker {
 	}
 
 	patchProgressEvent(progress: { current: number; total: number }) {
+		// `progressDetail: {}` has no progress yet: leave the total unknown, so
+		// the layer isn't coalesced and counts as 0 progress
+		if (progress.current == null && progress.total == null) {
+			return;
+		}
+		// some events arrive without .current, as it is omitted when 0
+		progress.current ??= 0;
 		// some events arrive without .total
 		progress.total ??= progress.current;
 		// some events arrive with .current > .total
@@ -332,9 +339,13 @@ class ProgressReporter {
 					// trackers. This simplifies handling this case a lot, because it
 					// allows us to continue to assume there's always two stages in pull.
 					downloadProgressTracker.linkLayer(id, extractionProgressTracker);
-				} else if (status === 'Downloading') {
+				} else if (
+					// Ignore events without any progress details rather than failing
+					status === 'Downloading' &&
+					evt.progressDetail != null
+				) {
 					downloadProgressTracker.updateLayer(id, evt.progressDetail);
-				} else if (status === 'Extracting') {
+				} else if (status === 'Extracting' && evt.progressDetail != null) {
 					extractionProgressTracker.updateLayer(id, evt.progressDetail);
 				} else if (status === 'Download complete') {
 					downloadProgressTracker.finishLayer(id);
@@ -617,7 +628,10 @@ class ProgressReporter {
 
 				if (status === 'Preparing') {
 					progressTracker.addLayer(id);
-				} else if (status === 'Pushing' && evt.progressDetail.current != null) {
+				} else if (
+					status === 'Pushing' &&
+					evt.progressDetail?.current != null
+				) {
 					progressTracker.updateLayer(id, evt.progressDetail);
 					// registry v2 statuses
 				} else if (
@@ -676,7 +690,7 @@ class BalenaProgressReporter extends ProgressReporter {
 					return;
 				}
 
-				let { current, total } = evt.progressDetail;
+				let { current, total } = evt.progressDetail ?? {};
 
 				// sanity check.
 				if (isNaN(current)) {
