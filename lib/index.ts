@@ -383,11 +383,10 @@ class ProgressReporter {
 				// Check for a `Step n/total` message on the stream
 				const streamComponents = stream.match(/^Step (\d+)\/(\d+)\s*:\s*(.+)/);
 				if (streamComponents != null) {
-					let instruction = '';
-					[, step, total, instruction] = streamComponents;
-					step ||= 1;
-					total ||= 1;
-					instruction ||= '';
+					const [, stepStr, totalStr, instruction = ''] = streamComponents;
+					// Parse as numbers, otherwise eg. `'10' >= '9'` is false
+					step = parseInt(stepStr, 10) || 1;
+					total = parseInt(totalStr, 10) || 1;
 
 					// Normalize the lastPercentage by the number of steps
 					lastPercentage = Math.floor((100 * (step - 1)) / total);
