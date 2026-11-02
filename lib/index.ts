@@ -186,6 +186,7 @@ async function awaitRegistryStream(
 			} catch (error) {
 				try {
 					(stream as NodeJS.ReadStream).destroy(error as Error);
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 					reject(error as Error);
 				} catch {
 					stream.emit('error', error);
