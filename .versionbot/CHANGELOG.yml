@@ -1,4 +1,16 @@
 - commits:
+    - subject: Pin dependencies
+      hash: 99c8dd638924b91476480fdb47d5b041cf074f96
+      body: |
+        Update @types/JSONStream
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+  version: 5.4.21
+  title: ""
+  date: 2026-11-03T05:59:14.539Z
+- commits:
     - subject: Update @balena/lint to 11.x
       hash: 2d9ef9ab3f2c4891979eb012b7d9a2bde99ae948
       body: ""
