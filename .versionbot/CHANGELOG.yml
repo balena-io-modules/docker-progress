@@ -1,4 +1,15 @@
 - commits:
+    - subject: Update @balena/lint to 11.x
+      hash: 2d9ef9ab3f2c4891979eb012b7d9a2bde99ae948
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.20
+  title: ""
+  date: 2026-11-03T05:24:17.736Z
+- commits:
     - subject: Revert flowzone pinning to master
       hash: 9ca413bd7e1e17efe586f6f667363aeb45103a0f
       body: ""
