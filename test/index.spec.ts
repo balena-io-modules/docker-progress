@@ -304,6 +304,36 @@ describe('build progress', () => {
 		);
 		expect(events[events.length - 1]).to.have.property('percentage', 75);
 	});
+
+	it('ignores an earlier `Step n/total` line printed by a RUN step', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		onProgress({ stream: 'Step 1/4 : RUN echo 1' });
+		onProgress({ stream: 'Step 2/4 : RUN echo 2' });
+		onProgress({ stream: 'Step 3/4 : RUN ./build.sh' });
+		onProgress({ stream: ' ---> Running in 0123456789ab' });
+		// Output of the RUN step
+		onProgress({ stream: 'Step 1/4 : FROM alpine' });
+		onProgress({ stream: 'Step 4/4 : RUN echo 4' });
+
+		expect(events.map((e) => e.percentage)).to.deep.equal([
+			0, 25, 50, 50, 50, 75,
+		]);
+	});
+
+	it('ignores a `Step n/total` line with a different total', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		onProgress({ stream: 'Step 1/4 : RUN echo 1' });
+		onProgress({ stream: 'Step 2/4 : RUN ./build.sh' });
+		// Output of the RUN step
+		onProgress({ stream: 'Step 3/3 : RUN make' });
+		onProgress({ stream: 'Step 3/4 : RUN echo 3' });
+
+		expect(events.map((e) => e.percentage)).to.deep.equal([0, 25, 25, 50]);
+	});
 });
 
 describe('options', () => {
