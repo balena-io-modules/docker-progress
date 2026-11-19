@@ -16,6 +16,7 @@
  */
 
 import type * as Stream from 'stream';
+import { finished } from 'node:stream';
 
 import type {
 	DockerVersion,
@@ -194,7 +195,14 @@ async function awaitRegistryStream(
 			}
 		});
 
-		stream.on('error', reject);
+		// Reject if the stream errors, and also if it closes without ending (eg.
+		// destroyed without an error) as `.pipe()` would then never end the
+		// JSON stream, leaving us waiting forever
+		finished(stream, { writable: false }, (err) => {
+			if (err) {
+				reject(err);
+			}
+		});
 		stream.pipe(jsonStream);
 	});
 }
