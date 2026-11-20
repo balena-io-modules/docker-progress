@@ -1,4 +1,19 @@
 - commits:
+    - subject: "isBalenaEngine: Allow retrying after docker.version() fails"
+      hash: de5719df112e4c81d667ce77e021cc25f900c6b3
+      body: |
+        The shared `engineVersionPromise` was only cleared after it resolved, so
+        a single failed `docker.version()` call (eg. the engine not being ready
+        yet) was cached forever and every later pull/push/build of that
+        DockerProgress instance rejected with the same error.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.25
+  title: ""
+  date: 2026-11-20T00:19:48.750Z
+- commits:
     - subject: Update dependency rimraf to v6.1.4
       hash: 05cbb7edac87a75dd459931b4700df68b148da9b
       body: |
