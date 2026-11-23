@@ -1,4 +1,27 @@
 - commits:
+    - subject: "pull: Fix extracting the digest from the `Digest: <digest>` status"
+      hash: b904ad8d8d0ddc2707149bd2cba6f584bf725b37
+      body: |
+        The regex introduced in 69b72c1 used `[\s$]` to allow the digest to be
+        followed by whitespace or the end of the string, but inside a character
+        class `$` is a literal dollar sign. Since pull reports the digest as a
+        status of exactly `Digest: <digest>`, pull() always resolved with an
+        empty string.
+
+        build() shares the same stream handling, and the classic builder
+        streams the pull of its FROM image into the build output, including
+        that image's `Digest: <digest>` status. Fixing the regex alone would
+        have made build() resolve with the base image's digest instead of an
+        empty string, so digests are now only parsed from the status of pull
+        and push streams, and build() still resolves with an empty string.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.26
+  title: ""
+  date: 2026-11-23T15:14:53.658Z
+- commits:
     - subject: "isBalenaEngine: Allow retrying after docker.version() fails"
       hash: de5719df112e4c81d667ce77e021cc25f900c6b3
       body: |
