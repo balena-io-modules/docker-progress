@@ -1,4 +1,23 @@
 - commits:
+    - subject: "awaitRegistryStream: Reject if the stream closes without ending"
+      hash: 4a079651647667ceec18e66c3fd657a1fb180d7f
+      body: |
+        If the source stream was closed without emitting either 'end' or
+        'error' (eg. destroyed without an error), `.pipe()` never ended the
+        JSON stream so the pull/push/build promise never settled. Use
+        `stream.finished()` to reject in that case as well as on errors.
+
+        HTTP responses from docker-modem already emit an error on a premature
+        socket close, so this mostly affects other streams (eg. wrapped or
+        mocked ones).
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.27
+  title: ""
+  date: 2026-11-23T15:25:45.041Z
+- commits:
     - subject: "pull: Fix extracting the digest from the `Digest: <digest>` status"
       hash: b904ad8d8d0ddc2707149bd2cba6f584bf725b37
       body: |
