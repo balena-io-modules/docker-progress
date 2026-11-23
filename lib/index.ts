@@ -139,8 +139,12 @@ function tryExtractDigestHashFromAux(evt: JSONMessage): string | undefined {
 function tryParseDigestHashFromStatus(evt: JSONMessage): string | undefined {
 	if (typeof evt.status === 'string') {
 		// https://github.com/moby/moby/blob/v27.0.1/daemon/containerd/image_push.go#L130
+		// https://github.com/moby/moby/blob/v27.0.1/distribution/pull_v2.go#L457
+		// https://github.com/moby/moby/blob/v27.0.1/daemon/containerd/image_pull.go#L118
+		// The pull status is just `Digest: <digest>`, so the digest can be
+		// followed by either whitespace or the end of the string
 		const matchPull = evt.status.match(
-			/[Dd]igest:\s([a-zA-Z0-9]+:[a-f0-9]+)[\s$]/,
+			/[Dd]igest:\s([a-zA-Z0-9]+:[a-f0-9]+)(?:\s|$)/,
 		);
 		return matchPull?.[1];
 	}
@@ -150,6 +154,9 @@ async function awaitRegistryStream(
 	stream: NodeJS.ReadableStream,
 	onProgress: ProgressCallback,
 	ignoreErrorEvents: boolean,
+	// Builds stream the status of pulling their base images, including its
+	// `Digest: <digest>`, which is not the digest of the build result
+	parseStatusDigest: boolean,
 ): Promise<string> {
 	const JSONStream = await import('JSONStream');
 	return await new Promise((resolve, reject) => {
@@ -176,7 +183,7 @@ async function awaitRegistryStream(
 				const auxDigest = tryExtractDigestHashFromAux(evt);
 				if (auxDigest != null) {
 					contentHashFromAux = auxDigest;
-				} else {
+				} else if (parseStatusDigest) {
 					const loggedDigest = tryParseDigestHashFromStatus(evt);
 					if (loggedDigest != null) {
 						contentHashFromStatus = loggedDigest;
@@ -755,6 +762,7 @@ export class DockerProgress {
 			stream,
 			onProgress,
 			ignoreErrorEvents,
+			true,
 		);
 		return hash;
 	}
@@ -774,6 +782,7 @@ export class DockerProgress {
 			stream,
 			onProgress,
 			ignoreErrorEvents,
+			true,
 		);
 		return hash;
 	}
@@ -814,6 +823,7 @@ export class DockerProgress {
 			stream,
 			onProgress,
 			ignoreErrorEvents,
+			false,
 		);
 
 		return hash;
