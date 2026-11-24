@@ -1,4 +1,16 @@
 - commits:
+    - subject: Update dependency @types/dockerode to v4
+      hash: ac799435993f4fa8891b943aea260403a0b307e2
+      body: |
+        Update @types/dockerode from 3.3.47 to 4.0.2
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+  version: 5.4.28
+  title: ""
+  date: 2026-11-24T16:37:16.086Z
+- commits:
     - subject: "awaitRegistryStream: Reject if the stream closes without ending"
       hash: 4a079651647667ceec18e66c3fd657a1fb180d7f
       body: |
