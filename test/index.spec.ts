@@ -409,3 +409,33 @@ describe('options', () => {
 		}
 	});
 });
+
+describe('awaitRegistryStream invalid JSON', () => {
+	it('pull() rejects and destroys the Docker response stream on invalid JSON', async () => {
+		const sourceStream = new PassThrough();
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			sourceStream.write(
+				JSON.stringify({ status: 'Pulling fs layer', id: 'layer' }) +
+					'\r\n<html>Bad Gateway</html>\r\n',
+			);
+		}, 50);
+
+		let err: any;
+		try {
+			await dp.pull('test-image', () => {});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).to.be.an.instanceOf(Error);
+		expect(err.message).to.match(/^Invalid JSON/);
+		expect(sourceStream.destroyed).to.equal(true);
+	});
+});

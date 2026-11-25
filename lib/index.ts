@@ -165,7 +165,12 @@ async function awaitRegistryStream(
 		let contentHashFromStatus: string | undefined;
 		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse(undefined);
 
-		jsonStream.on('error', reject);
+		jsonStream.on('error', (error: Error) => {
+			// `.pipe()` only unpipes the source on a parse error, which would leave
+			// it, and the connection to the engine, open
+			(stream as Partial<Stream.Readable>).destroy?.(error);
+			reject(error);
+		});
 		jsonStream.on('close', reject);
 		jsonStream.on('end', () => {
 			// We prefer the digest found in the structured event object otherwise
