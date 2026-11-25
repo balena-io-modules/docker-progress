@@ -239,3 +239,24 @@ describe('awaitRegistryStream premature close', () => {
 		expect(await withTimeout(dp.pull('test-image', () => {}))).to.equal('');
 	});
 });
+
+describe('delta progress', () => {
+	it('includes totalProgress in the final 100% event', async () => {
+		const mockDocker = { version: async () => ({ Version: '20.10.0' }) };
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		const events: any[] = [];
+		const onProgress = await dp.makeDeltaProgressReporter((e) =>
+			events.push(e),
+		);
+
+		onProgress({ status: 'Fingerprint complete' });
+		onProgress({ status: `Created delta: sha256:${'a'.repeat(64)}` });
+
+		expect(events).to.have.length(2);
+		expect(events[0]).to.have.property('percentage', 25);
+		expect(events[1]).to.deep.equal({
+			percentage: 100,
+			totalProgress: `[${'='.repeat(50)}>] 100%`,
+		});
+	});
+});

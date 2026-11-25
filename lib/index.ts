@@ -515,7 +515,7 @@ class ProgressReporter {
 
 				// Ensure we always emit a final 100%
 				if (e.status.startsWith('Created delta: ')) {
-					onProgress({ percentage: 100 });
+					onProgress({ percentage: 100, totalProgress: progressRenderer(100) });
 					return;
 				}
 
