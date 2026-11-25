@@ -1,4 +1,25 @@
 - commits:
+    - subject: "build: Fix BuildKit builds failing on their trace events"
+      hash: ca1dc83d1a2d66658fe25ad1ea6eb04905c731dc
+      body: >
+        Since 68c5bcb the digest is extracted from the event `aux` using the
+
+        `in` operator, which throws a TypeError for a non-object. BuildKit
+        builds
+
+        (`version: '2'`) emit `moby.buildkit.trace` events with a base64 encoded
+
+        string as their `aux`, so every BuildKit build() rejected with eg.
+
+        `Cannot use 'in' operator to search for 'Digest' in ...`.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.33
+  title: ""
+  date: 2026-11-25T14:44:35.156Z
+- commits:
     - subject: "awaitRegistryStream: Destroy the response stream on invalid JSON"
       hash: 4f85991ad1ef08a40ccc1197cc49ce188d771635
       body: |
