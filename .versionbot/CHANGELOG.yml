@@ -1,4 +1,26 @@
 - commits:
+    - subject: "build: Compare `Step n/total` numbers numerically"
+      hash: 0ff616a67a79ee0f81899933e899b1ceccf3c894
+      body: |
+        The step and total captured from the `Step n/total` stream message were
+        assigned as strings (hidden by `evt` being `any`), so `step >= lastStep`
+        compared them lexicographically. A step whose number sorts before the
+        previous step's as a string, which for consecutive steps means only step
+        10 after step 9 (`'10' >= '9'` is false), step 100 after step 99 and so
+        on, did not get a new progress callback and kept the previous step's
+        one. So a FROM at step 10 had no pull progress tracking, and the step
+        after a FROM at step 9 kept being reported through that FROM's pull
+        progress callback, so its events carried the pull fields and could run
+        ahead, eg. 83% rather than 75% during step 10/12 once the pull had
+        completed. Other steps, eg. a FROM at step 11, were not affected.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.30
+  title: ""
+  date: 2026-11-25T14:16:12.180Z
+- commits:
     - subject: "delta: Include totalProgress in the final 100% progress event"
       hash: 3ab9aa756885c955a5d5cf12ac06faa8b49eb74d
       body: |
