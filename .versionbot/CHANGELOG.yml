@@ -1,4 +1,18 @@
 - commits:
+    - subject: "delta: Include totalProgress in the final 100% progress event"
+      hash: 3ab9aa756885c955a5d5cf12ac06faa8b49eb74d
+      body: |
+        Every other delta progress event includes the rendered `totalProgress`,
+        but the final one emitted on `Created delta: ...` only had `percentage`,
+        so consumers rendering `totalProgress` got `undefined` for it.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.29
+  title: ""
+  date: 2026-11-25T01:57:56.473Z
+- commits:
     - subject: Update dependency @types/dockerode to v4
       hash: ac799435993f4fa8891b943aea260403a0b307e2
       body: |
