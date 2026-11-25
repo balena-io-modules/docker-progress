@@ -123,11 +123,16 @@ interface JSONMessage {
 	time?: number;
 	timeNano?: number;
 	errorDetail?: JSONError;
-	aux?: ApiTypes_PushResult | ApiTypesAuxProgress_ManifestPushedInsteadOfIndex; // | json.RawMessage
+	aux?:
+		| ApiTypes_PushResult
+		| ApiTypesAuxProgress_ManifestPushedInsteadOfIndex
+		// eg. the base64 encoded BuildKit trace of `moby.buildkit.trace` events
+		// https://github.com/moby/moby/blob/v27.0.1/builder/builder-next/builder.go#L444
+		| string; // | json.RawMessage
 }
 
 function tryExtractDigestHashFromAux(evt: JSONMessage): string | undefined {
-	if (evt.aux == null) {
+	if (evt.aux == null || typeof evt.aux !== 'object') {
 		return;
 	}
 	if ('Digest' in evt.aux && evt.aux.Digest) {
