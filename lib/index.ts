@@ -68,6 +68,13 @@ interface ApiTypes_PushResult {
 	Size: number;
 }
 
+// https://github.com/moby/moby/blob/v27.0.1/api/types/types.go#L462
+// https://github.com/moby/moby/blob/v27.0.1/builder/dockerfile/builder.go#L226
+// https://github.com/moby/moby/blob/v27.0.1/api/server/backend/build/backend.go#L85
+interface ApiTypes_BuildResult {
+	ID: string;
+}
+
 // https://github.com/opencontainers/image-spec/blob/v1.1.1/specs-go/v1/descriptor.go#L22
 interface ImageSpecV1_Descriptor {
 	/* MediaType is the media type of the object this schema refers to. */
@@ -126,6 +133,7 @@ interface JSONMessage {
 	aux?:
 		| ApiTypes_PushResult
 		| ApiTypesAuxProgress_ManifestPushedInsteadOfIndex
+		| ApiTypes_BuildResult
 		// eg. the base64 encoded BuildKit trace of `moby.buildkit.trace` events
 		// https://github.com/moby/moby/blob/v27.0.1/builder/builder-next/builder.go#L444
 		| string; // | json.RawMessage
@@ -140,6 +148,12 @@ function tryExtractDigestHashFromAux(evt: JSONMessage): string | undefined {
 	}
 	if ('selectedManifest' in evt.aux && evt.aux.selectedManifest?.digest) {
 		return evt.aux.selectedManifest.digest;
+	}
+}
+function tryExtractImageIdFromAux(evt: JSONMessage): string | undefined {
+	// The aux is not always an object, eg. BuildKit trace events have a string
+	if (evt.aux != null && typeof evt.aux === 'object' && 'ID' in evt.aux) {
+		return evt.aux.ID;
 	}
 }
 function tryParseDigestHashFromStatus(evt: JSONMessage): string | undefined {
@@ -168,6 +182,7 @@ async function awaitRegistryStream(
 	return await new Promise((resolve, reject) => {
 		let contentHashFromAux: string | undefined;
 		let contentHashFromStatus: string | undefined;
+		let imageIdFromAux: string | undefined;
 		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse(undefined);
 
 		jsonStream.on('error', (error: Error) => {
@@ -179,8 +194,11 @@ async function awaitRegistryStream(
 		jsonStream.on('close', reject);
 		jsonStream.on('end', () => {
 			// We prefer the digest found in the structured event object otherwise
-			// we fallback to the one parsed from the logs.
-			resolve(contentHashFromAux ?? contentHashFromStatus ?? '');
+			// we fallback to the one parsed from the logs, and then to the ID of
+			// the built image for builds, which do not result in a digest.
+			resolve(
+				contentHashFromAux ?? contentHashFromStatus ?? imageIdFromAux ?? '',
+			);
 		});
 		jsonStream.on('data', (evt) => {
 			if (typeof evt !== 'object') {
@@ -199,6 +217,10 @@ async function awaitRegistryStream(
 					if (loggedDigest != null) {
 						contentHashFromStatus = loggedDigest;
 					}
+				}
+				const auxImageId = tryExtractImageIdFromAux(evt);
+				if (auxImageId != null) {
+					imageIdFromAux = auxImageId;
 				}
 				onProgress(evt);
 			} catch (error) {
@@ -813,7 +835,10 @@ export class DockerProgress {
 		return hash;
 	}
 
-	/** Build docker image calling onProgress with extended progress info regularly */
+	/**
+	 * Build docker image calling onProgress with extended progress info regularly,
+	 * resolving with the ID of the built image (or an empty string if unknown)
+	 */
 	async build(
 		tarStream: Stream.Readable,
 		onProgress: ProgressCallback,

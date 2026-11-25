@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { expect } from 'chai';
 
-import { DockerProgress } from '../lib/index';
+import { type BuildOptions, DockerProgress } from '../lib/index';
 
 describe('awaitRegistryStream', () => {
 	it('pull() rejects when the Docker response stream emits an error', async () => {
@@ -553,5 +553,54 @@ describe('balena-engine pull progress', () => {
 
 		expect(events[0]).to.have.property('percentage', 100);
 		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
+
+describe('build() result', () => {
+	const imageId = `sha256:${'b'.repeat(64)}`;
+
+	const buildWith = async (events: object[], options?: BuildOptions) => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			buildImage: async () => {
+				const stream = new PassThrough();
+				for (const evt of events) {
+					stream.write(JSON.stringify(evt) + '\r\n');
+				}
+				stream.end();
+				return stream;
+			},
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp.build(new PassThrough(), () => {}, options);
+	};
+
+	it('resolves with the ID of the image built by the classic builder', async () => {
+		expect(
+			await buildWith([
+				{ stream: 'Step 1/1 : FROM alpine' },
+				{ aux: { ID: imageId } },
+				{ stream: `Successfully built ${'b'.repeat(12)}` },
+			]),
+		).to.equal(imageId);
+	});
+
+	it('resolves with the ID of the image built by BuildKit', async () => {
+		expect(
+			await buildWith(
+				[
+					// BuildKit trace events have a base64 encoded protobuf as their aux
+					{ id: 'moby.buildkit.trace', aux: 'CmsKR3NoYTI1Ng==' },
+					{ id: 'moby.image.id', aux: { ID: imageId } },
+				],
+				{ version: '2' },
+			),
+		).to.equal(imageId);
+	});
+
+	it('resolves with an empty string when there is no image ID', async () => {
+		expect(await buildWith([{ stream: 'Step 1/1 : FROM alpine' }])).to.equal(
+			'',
+		);
 	});
 });
