@@ -1,4 +1,28 @@
 - commits:
+    - subject: "pull/push/build: Do not send our own options to the engine"
+      hash: 5e33f63463391b05c356961ababaa705f00a43e4
+      body: |
+        `ignoreProgressErrorEvents` was passed through to dockerode for
+        pull/push/build, ending up in the engine's request query string.
+
+        build() also passed the caller's options object itself to dockerode,
+        after moving `authconfig` into `registryconfig` on it. dockerode then
+        removes `registryconfig` and `authconfig` from it and stringifies
+        `cachefrom` in place, and docker-modem removes `abortSignal`, so
+        reusing the options, eg. to retry a failed build, sent no registry
+        credentials and could no longer be aborted. pull() and push() were not
+        affected by this, as dockerode copies their options.
+
+        Separate our own options from the passed ones, so that dockerode gets
+        a copy without them, which build() then also works on.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.31
+  title: ""
+  date: 2026-11-25T14:28:24.636Z
+- commits:
     - subject: "build: Compare `Step n/total` numbers numerically"
       hash: 0ff616a67a79ee0f81899933e899b1ceccf3c894
       body: |
