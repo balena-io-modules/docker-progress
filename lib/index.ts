@@ -682,18 +682,23 @@ class BalenaProgressReporter extends ProgressReporter {
 				if (isNaN(current)) {
 					current = 0;
 				}
-				if (isNaN(total)) {
-					total = current + 1;
+				// The engine omits a total of 0, so a missing or non-positive total
+				// is unknown: keep the last percentage rather than guessing one
+				if (total > 0) {
+					lastPercentage = Math.max(
+						Math.min(Math.floor((current * 100) / total), 100),
+						lastPercentage,
+					);
 				}
-
-				let percentage = Math.floor((current * 100) / total);
-				percentage = lastPercentage = Math.max(percentage, lastPercentage);
+				const percentage = lastPercentage;
 
 				onProgress({
 					...evt,
 					percentage,
-					downloadedPercentage: current,
-					extractedPercentage: current,
+					// balena-engine downloads and extracts layers at the same time,
+					// so both stages share the same progress
+					downloadedPercentage: percentage,
+					extractedPercentage: percentage,
 					totalProgress: progressRenderer(percentage),
 				});
 			} catch (err) {
