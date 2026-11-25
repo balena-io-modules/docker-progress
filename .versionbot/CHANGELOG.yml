@@ -1,4 +1,29 @@
 - commits:
+    - subject: "balena pull: Report percentages for downloaded/extractedPercentage"
+      hash: 090e987ef36b5c3cb1eafc7c74baec02f65dbd86
+      body: |
+        With balena-engine the pull progress events set `downloadedPercentage`
+        and `extractedPercentage` to the raw `current` byte count rather than a
+        percentage, unlike the generic pull progress.
+
+        The percentage itself also went wrong when the `Total` event had no
+        usable total, and since it never decreases the wrong value stuck for the
+        rest of the pull:
+        - a `total` of 0 made it NaN (rendered as `[>] NaN%`) or Infinity
+        - an omitted `total` (the engine omits it when 0) was replaced with
+          `current + 1`, so the progress jumped to 99%
+        - a `current` above `total` reported more than 100%
+
+        Treat a missing or non-positive total as unknown and keep the last
+        percentage for that event, and cap the percentage at 100.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.34
+  title: ""
+  date: 2026-11-25T16:27:18.667Z
+- commits:
     - subject: "build: Fix BuildKit builds failing on their trace events"
       hash: ca1dc83d1a2d66658fe25ad1ea6eb04905c731dc
       body: >
