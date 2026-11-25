@@ -260,3 +260,48 @@ describe('delta progress', () => {
 		});
 	});
 });
+
+describe('build progress', () => {
+	const getReporter = async () => {
+		const mockDocker = { version: async () => ({ Version: '20.10.0' }) };
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp['getProgressReporter']();
+	};
+
+	it('tracks the pull progress of a FROM at step 10', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		for (let i = 1; i <= 9; i++) {
+			onProgress({ stream: `Step ${i}/12 : RUN echo ${i}` });
+		}
+		onProgress({ stream: 'Step 10/12 : FROM alpine' });
+		onProgress({ status: 'Pulling fs layer', id: 'layer' });
+		onProgress({
+			status: 'Downloading',
+			id: 'layer',
+			progressDetail: { current: 25_000_000, total: 50_000_000 },
+		});
+
+		expect(events[events.length - 1]).to.have.property(
+			'downloadedPercentage',
+			50,
+		);
+	});
+
+	it('stops tracking pull progress after a FROM at step 9 when step 10 starts', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.buildProgress((e) => events.push(e));
+		for (let i = 1; i <= 8; i++) {
+			onProgress({ stream: `Step ${i}/12 : RUN echo ${i}` });
+		}
+		onProgress({ stream: 'Step 9/12 : FROM alpine' });
+		onProgress({ stream: 'Step 10/12 : RUN echo 10' });
+
+		expect(events[events.length - 1]).to.not.have.property(
+			'downloadedPercentage',
+		);
+		expect(events[events.length - 1]).to.have.property('percentage', 75);
+	});
+});
