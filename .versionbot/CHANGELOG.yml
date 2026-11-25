@@ -1,4 +1,21 @@
 - commits:
+    - subject: "awaitRegistryStream: Destroy the response stream on invalid JSON"
+      hash: 4f85991ad1ef08a40ccc1197cc49ce188d771635
+      body: |
+        When the engine's response contained invalid JSON (eg. an HTML error
+        page from a proxy), JSONStream emitted an error and the pull/push/build
+        rejected, but `.pipe()` only unpipes the source on an error of its
+        destination. The response stream was left paused and open, keeping its
+        connection to the engine open as well. It is now destroyed with the
+        parse error.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Pagan Gazzard
+  version: 5.4.32
+  title: ""
+  date: 2026-11-25T14:34:49.000Z
+- commits:
     - subject: "pull/push/build: Do not send our own options to the engine"
       hash: 5e33f63463391b05c356961ababaa705f00a43e4
       body: |
