@@ -1,7 +1,11 @@
 import { PassThrough } from 'node:stream';
 import { expect } from 'chai';
 
-import { DockerProgress } from '../lib/index';
+import {
+	DockerProgress,
+	type AggregatedProgressEvent,
+	type ProgressCallback,
+} from '../lib/index';
 
 describe('awaitRegistryStream', () => {
 	it('pull() rejects when the Docker response stream emits an error', async () => {
@@ -553,5 +557,69 @@ describe('balena-engine pull progress', () => {
 
 		expect(events[0]).to.have.property('percentage', 100);
 		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
+
+describe('progress event typings', () => {
+	const streamOf = (events: object[]) => {
+		const stream = new PassThrough();
+		for (const evt of events) {
+			stream.write(JSON.stringify(evt) + '\r\n');
+		}
+		stream.end();
+		return stream;
+	};
+
+	const pullEvents = [
+		{ status: 'Pulling fs layer', id: 'layer' },
+		{
+			status: 'Downloading',
+			id: 'layer',
+			progressDetail: { current: 25_000_000, total: 50_000_000 },
+		},
+	];
+
+	const mockDocker = {
+		version: async () => ({ Version: '20.10.0' }),
+		pull: async () => streamOf(pullEvents),
+		getImage: () => ({
+			push: async () => streamOf([{ status: 'Preparing', id: 'layer' }]),
+		}),
+	};
+
+	it('types the pull progress events', async () => {
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const downloadedPercentages: number[] = [];
+		await dp.pull('alpine', (evt) => {
+			// @ts-expect-error a typo of `percentage`
+			void evt.percentag;
+			downloadedPercentages.push(evt.downloadedPercentage);
+		});
+
+		expect(downloadedPercentages).to.deep.equal([0, 50]);
+	});
+
+	it('allows using the default ProgressCallback for any operation', async () => {
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const received: AggregatedProgressEvent[] = [];
+		const onProgress: ProgressCallback<AggregatedProgressEvent> = (evt) => {
+			const { error, percentage, totalProgress } = evt;
+			expect(error).to.equal(undefined);
+			expect(percentage).to.be.a('number');
+			expect(totalProgress).to.be.a('string');
+			received.push(evt);
+		};
+		const hooks: ProgressCallback[] = dp.aggregateProgress(3, onProgress);
+
+		await dp.pull('alpine', hooks[0]);
+		await dp.push('alpine', hooks[1]);
+		const onDeltaProgress = await dp.makeDeltaProgressReporter(hooks[2]);
+		onDeltaProgress({ status: 'Fingerprint complete' });
+
+		expect(received.map((evt) => evt.progressIndex)).to.deep.equal([
+			0, 0, 1, 2,
+		]);
 	});
 });
