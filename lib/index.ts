@@ -376,7 +376,6 @@ class ProgressReporter {
 
 	buildProgress(onProgress: ProgressCallback): ProgressCallback {
 		const progressRenderer = this.renderProgress;
-		let lastStep = 1;
 		let step = 0;
 		let total = 1;
 		let lastPercentage = 0;
@@ -394,17 +393,21 @@ class ProgressReporter {
 				const streamComponents = stream.match(/^Step (\d+)\/(\d+)\s*:\s*(.+)/);
 				if (streamComponents != null) {
 					const [, stepStr, totalStr, instruction = ''] = streamComponents;
-					// Parse as numbers, otherwise eg. `'10' >= '9'` is false
-					step = parseInt(stepStr, 10) || 1;
-					total = parseInt(totalStr, 10) || 1;
+					// Parse as numbers, otherwise eg. `'10' > '9'` is false
+					const newStep = parseInt(stepStr, 10) || 1;
+					const newTotal = parseInt(totalStr, 10) || 1;
 
-					// Normalize the lastPercentage by the number of steps
-					lastPercentage = Math.floor((100 * (step - 1)) / total);
+					// The `Step n/total` is only shown at the beginning of the step,
+					// so ignore one that doesn't advance the build (eg. printed by a
+					// RUN step) rather than moving the progress back
+					if (newStep > step && (step === 0 || newTotal === total)) {
+						step = newStep;
+						total = newTotal;
 
-					// The `Step n/total` is only shown at the beginning
-					// of the step. We re-create the pullProgress using the
-					// new total step value
-					if (step >= lastStep) {
+						// Normalize the lastPercentage by the number of steps
+						lastPercentage = Math.floor((100 * (step - 1)) / total);
+
+						// We re-create the pullProgress using the new total step value
 						if (instruction.toLowerCase().startsWith('from')) {
 							// If this is a FROM instruction, delegate progress to a new pullProgress
 							// callback
@@ -434,7 +437,6 @@ class ProgressReporter {
 							};
 						}
 					}
-					lastStep = step;
 				}
 
 				// Update the last percentage if the last step is finished
