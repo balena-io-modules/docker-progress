@@ -555,3 +555,31 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('build() context', () => {
+	it('accepts any build context supported by dockerode', async () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			buildImage: async (file: any) => {
+				received.push(file);
+				const stream = new PassThrough();
+				stream.end();
+				return stream;
+			},
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const readableStream: NodeJS.ReadableStream = new PassThrough();
+		const context = { context: '/path/to/project', src: ['Dockerfile'] };
+		await dp.build(readableStream, () => {});
+		await dp.build('/path/to/context.tar', () => {});
+		await dp.build(context, () => {});
+
+		expect(received).to.deep.equal([
+			readableStream,
+			'/path/to/context.tar',
+			context,
+		]);
+	});
+});

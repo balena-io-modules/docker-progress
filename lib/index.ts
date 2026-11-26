@@ -22,6 +22,7 @@ import type {
 	DockerVersion,
 	ImagePushOptions,
 	ImageBuildOptions,
+	ImageBuildContext,
 	AuthConfig,
 	RegistryConfig,
 } from 'dockerode';
@@ -815,7 +816,9 @@ export class DockerProgress {
 
 	/** Build docker image calling onProgress with extended progress info regularly */
 	async build(
-		tarStream: Stream.Readable,
+		// A tar stream/file path of the build context, or the directory and files
+		// to include in it, as supported by dockerode
+		context: NodeJS.ReadableStream | string | ImageBuildContext,
 		onProgress: ProgressCallback,
 		options?: BuildOptions,
 	): Promise<string> {
@@ -850,7 +853,7 @@ export class DockerProgress {
 
 		const reporter = await this.getProgressReporter();
 		onProgress = reporter.buildProgress(onProgress);
-		const stream = await this.docker.buildImage(tarStream, buildOptions);
+		const stream = await this.docker.buildImage(context, buildOptions);
 		const hash = await awaitRegistryStream(
 			stream,
 			onProgress,
