@@ -555,3 +555,91 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('progress events with a missing or partial progressDetail', () => {
+	const getReporter = async (Engine?: string) => {
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0', Engine }),
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+		return await dp['getProgressReporter']();
+	};
+
+	it('pull progress ignores Downloading/Extracting events without progressDetail', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ status: 'Pulling fs layer', id: 'layer' });
+		onProgress({ status: 'Downloading', id: 'layer' });
+		onProgress({ status: 'Extracting', id: 'layer' });
+
+		expect(events).to.have.length(3);
+		expect(events[2]).to.include({
+			downloadedPercentage: 0,
+			extractedPercentage: 0,
+		});
+	});
+
+	it('pull progress treats an omitted progressDetail.current as 0', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ status: 'Pulling fs layer', id: 'layer' });
+		// The engine omits `current` when it is 0
+		onProgress({
+			status: 'Downloading',
+			id: 'layer',
+			progressDetail: { total: 50_000_000 },
+		});
+
+		expect(events[1]).to.have.property('downloadedPercentage', 0);
+		expect(events[1].progressDetail).to.deep.equal({
+			current: 0,
+			total: 50_000_000,
+		});
+	});
+
+	it('pull progress counts a layer whose progressDetail is empty', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ status: 'Pulling fs layer', id: 'layer1' });
+		onProgress({ status: 'Pulling fs layer', id: 'layer2' });
+		onProgress({
+			status: 'Downloading',
+			id: 'layer1',
+			progressDetail: { current: 50_000_000, total: 50_000_000 },
+		});
+		// The engine sends an empty progressDetail when both values are 0
+		onProgress({ status: 'Downloading', id: 'layer2', progressDetail: {} });
+
+		expect(events[3]).to.have.property('downloadedPercentage', 50);
+		expect(events[3].progressDetail).to.deep.equal({});
+	});
+
+	it('push progress ignores Pushing events without progressDetail', async () => {
+		const reporter = await getReporter();
+		const events: any[] = [];
+		const onProgress = reporter.pushProgress((e) => events.push(e));
+
+		onProgress({ status: 'Preparing', id: 'layer' });
+		onProgress({ status: 'Pushing', id: 'layer' });
+
+		expect(events).to.have.length(2);
+		expect(events[1]).to.have.property('percentage', 0);
+	});
+
+	it('balena-engine pull progress ignores events without progressDetail', async () => {
+		const reporter = await getReporter('balena-engine');
+		const events: any[] = [];
+		const onProgress = reporter.pullProgress((e) => events.push(e));
+
+		onProgress({ id: 'Total' });
+
+		expect(events).to.have.length(1);
+		expect(events[0]).to.have.property('percentage', 0);
+	});
+});
