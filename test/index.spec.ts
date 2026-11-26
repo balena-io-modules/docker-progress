@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { expect } from 'chai';
 
-import { DockerProgress } from '../lib/index';
+import { DockerProgress, type BuildOptions } from '../lib/index';
 
 describe('awaitRegistryStream', () => {
 	it('pull() rejects when the Docker response stream emits an error', async () => {
@@ -553,5 +553,152 @@ describe('balena-engine pull progress', () => {
 
 		expect(events[0]).to.have.property('percentage', 100);
 		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
+
+describe('build() authconfig', () => {
+	const getDocker = () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			buildImage: async (_tarStream: any, opts: any) => {
+				received.push({ ...opts });
+				const stream = new PassThrough();
+				stream.end();
+				return stream;
+			},
+		};
+		return {
+			received,
+			dp: new DockerProgress({ docker: mockDocker as any }),
+		};
+	};
+
+	it('passes the credentials as the registryconfig for the serveraddress', async () => {
+		const { dp, received } = getDocker();
+
+		await dp.build(new PassThrough(), () => {}, {
+			authconfig: {
+				username: 'user',
+				password: 'pass',
+				serveraddress: 'registry.example.com',
+			},
+		});
+
+		expect(received).to.have.length(1);
+		expect(received[0]).to.not.have.property('authconfig');
+		expect(received[0].registryconfig).to.deep.equal({
+			'registry.example.com': { username: 'user', password: 'pass' },
+		});
+	});
+
+	it('accepts every field of a registryconfig entry', async () => {
+		const { dp, received } = getDocker();
+
+		const options: BuildOptions[] = [
+			{
+				authconfig: {
+					identitytoken: 'token',
+					serveraddress: 'registry.example.com',
+				},
+			},
+			{
+				authconfig: {
+					username: 'user',
+					password: 'pass',
+					auth: 'dXNlcjpwYXNz',
+					email: 'user@example.com',
+					registrytoken: 'token',
+					serveraddress: 'registry.example.com',
+				},
+			},
+		];
+		for (const opts of options) {
+			await dp.build(new PassThrough(), () => {}, opts);
+		}
+
+		expect(received.map((opts) => opts.registryconfig)).to.deep.equal([
+			{ 'registry.example.com': { identitytoken: 'token' } },
+			{
+				'registry.example.com': {
+					username: 'user',
+					password: 'pass',
+					auth: 'dXNlcjpwYXNz',
+					email: 'user@example.com',
+					registrytoken: 'token',
+				},
+			},
+		]);
+	});
+
+	it('requires an authconfig that can be mapped in the typings', () => {
+		const options: BuildOptions[] = [
+			// @ts-expect-error serveraddress is required
+			{ authconfig: { username: 'user', password: 'pass' } },
+			{
+				authconfig: {
+					// @ts-expect-error the key form is not supported
+					key: 'key',
+					serveraddress: 'registry.example.com',
+				},
+			},
+		];
+		expect(options).to.have.length(2);
+	});
+
+	for (const [title, authconfig, error] of [
+		[
+			'without a serveraddress',
+			{ username: 'user', password: 'pass' },
+			/requires a serveraddress/,
+		],
+		['with only a key', { key: 'key' }, /key or base64/],
+		[
+			'with a key',
+			{ key: 'key', serveraddress: 'registry.example.com' },
+			/key or base64/,
+		],
+		[
+			'with a base64 encoded config',
+			{ base64: 'eyJ9', serveraddress: 'registry.example.com' },
+			/key or base64/,
+		],
+	] as const) {
+		for (const registryconfig of [
+			undefined,
+			{ 'other.example.com': { username: 'user', password: 'pass' } },
+		]) {
+			it(`rejects credentials ${title}${registryconfig ? ' alongside a registryconfig' : ''}`, async () => {
+				const { dp, received } = getDocker();
+
+				let err: any;
+				try {
+					await dp.build(new PassThrough(), () => {}, {
+						authconfig: authconfig as any,
+						registryconfig,
+					});
+				} catch (e) {
+					err = e;
+				}
+				expect(err).to.be.an.instanceOf(Error);
+				expect(err.message).to.match(error);
+				expect(received).to.have.length(0);
+			});
+		}
+	}
+
+	it('ignores an empty authconfig', async () => {
+		const { dp, received } = getDocker();
+		const registryconfig = {
+			'registry.example.com': { username: 'user', password: 'pass' },
+		};
+
+		await dp.build(new PassThrough(), () => {}, { authconfig: {} as any });
+		await dp.build(new PassThrough(), () => {}, {
+			authconfig: {} as any,
+			registryconfig,
+		});
+
+		expect(received).to.deep.equal([{}, { registryconfig }]);
 	});
 });

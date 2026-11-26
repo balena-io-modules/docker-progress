@@ -41,9 +41,16 @@ export interface PullPushOptions {
 
 export interface BuildOptions extends ImageBuildOptions {
 	ignoreProgressErrorEvents?: boolean;
-	authconfig?: AuthConfig & {
+	// Passed to the engine as the registryconfig entry for `serveraddress`
+	authconfig?: {
+		username?: string;
+		password?: string;
 		auth?: string;
+		identitytoken?: string;
 		registrytoken?: string;
+		/** @deprecated */
+		email?: string;
+		serveraddress: string;
 	};
 	registryconfig?: RegistryConfig & {
 		[registryAddress: string]: {
@@ -830,20 +837,27 @@ export class DockerProgress {
 		// Authconfig is not supported by docker `/build` endpoint but we support
 		// it here to provide a common interface with the `pull()` method
 		if (buildOptions.authconfig) {
-			let serverAuthConfig: RegistryConfig | undefined;
-			if (
-				'serveraddress' in buildOptions.authconfig &&
-				buildOptions.authconfig.serveraddress
-			) {
-				const { serveraddress, ...authconfig } = buildOptions.authconfig;
-				serverAuthConfig = { [serveraddress]: authconfig } as RegistryConfig;
+			const { serveraddress, ...authconfig } = buildOptions.authconfig;
+			// An empty authconfig has no credentials to pass on
+			if (Object.keys(buildOptions.authconfig).length > 0) {
+				// Fail rather than silently building without the credentials
+				if ('key' in authconfig || 'base64' in authconfig) {
+					throw new Error(
+						'The build() authconfig option does not support the key or base64 forms, use registryconfig instead',
+					);
+				}
+				if (!serveraddress) {
+					throw new Error(
+						'The build() authconfig option requires a serveraddress, to know which registry the credentials are for',
+					);
+				}
+				buildOptions.registryconfig = {
+					...({ [serveraddress]: authconfig } as RegistryConfig),
+					// Override with registryconfig if it the same serveraddress
+					// is used in both options
+					...buildOptions.registryconfig,
+				};
 			}
-			buildOptions.registryconfig = {
-				...serverAuthConfig,
-				// Override with registryconfig if it the same serveraddress
-				// is used in both options
-				...buildOptions.registryconfig,
-			};
 
 			delete buildOptions.authconfig;
 		}
