@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { expect } from 'chai';
 
-import { DockerProgress } from '../lib/index';
+import { DockerProgress, type BuildOptions } from '../lib/index';
 
 describe('awaitRegistryStream', () => {
 	it('pull() rejects when the Docker response stream emits an error', async () => {
@@ -553,5 +553,32 @@ describe('balena-engine pull progress', () => {
 
 		expect(events[0]).to.have.property('percentage', 100);
 		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
+
+describe('build() registryconfig', () => {
+	it('accepts registries with a token rather than a username/password', async () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			buildImage: async (_tarStream: any, opts: any) => {
+				received.push(opts);
+				const stream = new PassThrough();
+				stream.end();
+				return stream;
+			},
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		const options: BuildOptions = {
+			registryconfig: {
+				'registry.example.com': { registrytoken: 'token' },
+				'other.example.com': { identitytoken: 'token' },
+				'docker.io': { auth: 'dXNlcjpwYXNz' },
+			},
+		};
+		await dp.build(new PassThrough(), () => {}, options);
+
+		expect(received[0].registryconfig).to.deep.equal(options.registryconfig);
 	});
 });
