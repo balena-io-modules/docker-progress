@@ -555,3 +555,45 @@ describe('balena-engine pull progress', () => {
 		expect(events[0].totalProgress).to.match(/ 100%$/);
 	});
 });
+
+describe('pull/push options', () => {
+	const endedStream = () => {
+		const stream = new PassThrough();
+		stream.end();
+		return stream;
+	};
+
+	it('pull() passes the platform to the engine', async () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async (_image: string, opts: any) => {
+				received.push(opts);
+				return endedStream();
+			},
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		await dp.pull('alpine', () => {}, { platform: 'linux/arm64' });
+
+		expect(received[0]).to.have.property('platform', 'linux/arm64');
+	});
+
+	it('push() passes the tag to the engine', async () => {
+		const received: any[] = [];
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			getImage: () => ({
+				push: async (opts: any) => {
+					received.push(opts);
+					return endedStream();
+				},
+			}),
+		};
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		await dp.push('alpine', () => {}, { tag: 'v1' });
+
+		expect(received[0]).to.have.property('tag', 'v1');
+	});
+});

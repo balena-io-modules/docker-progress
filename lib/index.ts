@@ -39,6 +39,16 @@ export interface PullPushOptions {
 	abortSignal?: AbortSignal;
 }
 
+export interface PullOptions extends PullPushOptions {
+	/** The platform to pull, in the `os[/arch[/variant]]` format */
+	platform?: string;
+}
+
+export interface PushOptions extends PullPushOptions {
+	/** The tag to push, when it is not part of the image name */
+	tag?: string;
+}
+
 export interface BuildOptions extends ImageBuildOptions {
 	ignoreProgressErrorEvents?: boolean;
 	authconfig?: AuthConfig & {
@@ -774,7 +784,7 @@ export class DockerProgress {
 	async pull(
 		image: string,
 		onProgress: ProgressCallback,
-		options?: PullPushOptions,
+		options?: PullOptions,
 	): Promise<string> {
 		// Separate our own options so that they are not sent to the engine
 		const { ignoreProgressErrorEvents, ...pullOptions } = options ?? {};
@@ -795,7 +805,7 @@ export class DockerProgress {
 	async push(
 		image: string,
 		onProgress: ProgressCallback,
-		options?: PullPushOptions,
+		options?: PushOptions,
 	): Promise<string> {
 		// Separate our own options so that they are not sent to the engine
 		const { ignoreProgressErrorEvents, ...pushOptions } = options ?? {};
