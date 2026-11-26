@@ -168,6 +168,7 @@ async function awaitRegistryStream(
 	return await new Promise((resolve, reject) => {
 		let contentHashFromAux: string | undefined;
 		let contentHashFromStatus: string | undefined;
+		let failed = false;
 		const jsonStream: NodeJS.ReadWriteStream = JSONStream.parse(undefined);
 
 		jsonStream.on('error', (error: Error) => {
@@ -183,7 +184,9 @@ async function awaitRegistryStream(
 			resolve(contentHashFromAux ?? contentHashFromStatus ?? '');
 		});
 		jsonStream.on('data', (evt) => {
-			if (typeof evt !== 'object') {
+			// The rest of the current chunk, and any chunks already buffered on the
+			// source, are still parsed after destroying it, so ignore them
+			if (failed || typeof evt !== 'object') {
 				return;
 			}
 			try {
@@ -202,6 +205,7 @@ async function awaitRegistryStream(
 				}
 				onProgress(evt);
 			} catch (error) {
+				failed = true;
 				try {
 					(stream as NodeJS.ReadStream).destroy(error as Error);
 					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
