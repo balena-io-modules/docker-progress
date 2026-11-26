@@ -176,7 +176,15 @@ async function awaitRegistryStream(
 			(stream as Partial<Stream.Readable>).destroy?.(error);
 			reject(error);
 		});
-		jsonStream.on('close', reject);
+		jsonStream.on('close', () => {
+			// eg. legacy streams' `.pipe()` destroys the JSON stream when the
+			// source closes without ending (no-op once resolved)
+			reject(
+				Object.assign(new Error('Premature close'), {
+					code: 'ERR_STREAM_PREMATURE_CLOSE',
+				}),
+			);
+		});
 		jsonStream.on('end', () => {
 			// We prefer the digest found in the structured event object otherwise
 			// we fallback to the one parsed from the logs.

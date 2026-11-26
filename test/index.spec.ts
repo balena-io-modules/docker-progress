@@ -1,4 +1,4 @@
-import { PassThrough } from 'node:stream';
+import { PassThrough, Stream } from 'node:stream';
 import { expect } from 'chai';
 
 import { DockerProgress } from '../lib/index';
@@ -553,5 +553,57 @@ describe('balena-engine pull progress', () => {
 
 		expect(events[0]).to.have.property('percentage', 100);
 		expect(events[0].totalProgress).to.match(/ 100%$/);
+	});
+});
+
+describe('awaitRegistryStream legacy streams', () => {
+	it('pull() rejects with an error when a legacy response stream closes without ending', async () => {
+		const sourceStream = new Stream();
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			sourceStream.emit(
+				'data',
+				JSON.stringify({ status: 'Pulling fs layer', id: 'layer' }) + '\r\n',
+			);
+			sourceStream.emit('close');
+		}, 50);
+
+		let err: any;
+		try {
+			await dp.pull('test-image', () => {});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).to.be.an.instanceOf(Error);
+		expect(err.code).to.equal('ERR_STREAM_PREMATURE_CLOSE');
+	});
+
+	it('pull() resolves when a legacy response stream ends', async () => {
+		const sourceStream = new Stream();
+
+		const mockDocker = {
+			version: async () => ({ Version: '20.10.0' }),
+			pull: async () => sourceStream,
+		};
+
+		const dp = new DockerProgress({ docker: mockDocker as any });
+
+		setTimeout(() => {
+			sourceStream.emit(
+				'data',
+				JSON.stringify({ status: 'Pulling fs layer', id: 'layer' }) + '\r\n',
+			);
+			sourceStream.emit('end');
+			sourceStream.emit('close');
+		}, 50);
+
+		expect(await dp.pull('test-image', () => {})).to.equal('');
 	});
 });
